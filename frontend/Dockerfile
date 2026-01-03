@@ -11,6 +11,10 @@ RUN npm install
 # Copy source
 COPY . .
 
+# Debug: Check if files exist
+RUN ls -la /app/src/lib/ || echo "lib directory not found"
+RUN ls -la /app/src/ || echo "src directory not found"
+
 # Build
 RUN npm run build
 

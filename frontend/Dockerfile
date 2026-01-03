@@ -11,13 +11,6 @@ RUN npm install
 # Copy source
 COPY . .
 
-# Debug: Show file structure
-RUN echo "=== Current directory ===" && pwd
-RUN echo "=== Listing app directory ===" && ls -la /app/
-RUN echo "=== Listing src directory ===" && ls -la /app/src/ || echo "src not found"
-RUN echo "=== Listing src/lib directory ===" && ls -la /app/src/lib/ || echo "lib not found"
-RUN echo "=== Checking api.ts ===" && (test -f /app/src/lib/api.ts && echo "api.ts EXISTS" || echo "api.ts NOT FOUND") && cat /app/src/lib/api.ts | head -5 || true
-
 # Build
 RUN npm run build
 

@@ -11,9 +11,11 @@ RUN npm install
 # Copy source
 COPY . .
 
-# Debug: Check if files exist
-RUN ls -la /app/src/lib/ || echo "lib directory not found"
-RUN ls -la /app/src/ || echo "src directory not found"
+# Debug: Check if files exist and show structure
+RUN echo "=== Checking src/lib directory ===" && ls -la /app/src/lib/ 2>&1 || echo "lib directory not found"
+RUN echo "=== Checking if api.ts exists ===" && test -f /app/src/lib/api.ts && echo "api.ts exists" || echo "api.ts NOT FOUND"
+RUN echo "=== Checking if utils.ts exists ===" && test -f /app/src/lib/utils.ts && echo "utils.ts exists" || echo "utils.ts NOT FOUND"
+RUN echo "=== Checking vite.config.ts ===" && cat /app/vite.config.ts
 
 # Build
 RUN npm run build

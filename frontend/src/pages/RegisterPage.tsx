@@ -208,6 +208,12 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Prevent double submission
+    if (loading) {
+      return
+    }
+    
     setLoading(true)
 
     // Final validation
@@ -225,11 +231,17 @@ export default function RegisterPage() {
     }
 
     try {
+      console.log('Sending registration request...')
       const response = await api.post('/auth/register/', formData)
-      const { access, refresh, user } = response.data
+      console.log('Registration response received:', response.status, response.data)
       
-      // Stop loading immediately
-      setLoading(false)
+      // Validate response structure
+      if (!response.data || !response.data.access || !response.data.refresh || !response.data.user) {
+        console.error('Invalid response structure:', response.data)
+        throw new Error('Неверный формат ответа от сервера')
+      }
+      
+      const { access, refresh, user } = response.data
       
       // Set auth and show success message
       setAuth(user, access, refresh)
@@ -239,13 +251,23 @@ export default function RegisterPage() {
         duration: 6000,
       })
       
+      // Stop loading before navigation
+      setLoading(false)
+      
       // Redirect to dashboard immediately
+      console.log('Redirecting to dashboard...')
       navigate('/')
     } catch (error: any) {
       console.error('Registration error:', error)
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        response: error.response?.data,
+        status: error.response?.status,
+      })
       
       // Handle timeout or network errors
-      if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+      if (error.code === 'ECONNABORTED' || error.message === 'Network Error' || error.message?.includes('timeout')) {
         toast.error('Превышено время ожидания. Проверьте подключение к интернету.')
         setLoading(false)
         return
@@ -280,6 +302,9 @@ export default function RegisterPage() {
       
       const errorMessage = Object.values(newErrors)[0] || errorData.error || error.message || 'Ошибка регистрации'
       toast.error(errorMessage)
+      setLoading(false)
+    } finally {
+      // Ensure loading is always set to false, even if something unexpected happens
       setLoading(false)
     }
   }

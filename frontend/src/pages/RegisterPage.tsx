@@ -231,40 +231,42 @@ export default function RegisterPage() {
     }
 
     try {
-      console.log('Sending registration request...')
       const response = await api.post('/auth/register/', formData)
-      console.log('Registration response received:', response.status, response.data)
       
-      // Validate response structure
-      if (!response.data || !response.data.access || !response.data.refresh || !response.data.user) {
-        console.error('Invalid response structure:', response.data)
-        throw new Error('Неверный формат ответа от сервера')
-      }
+      // Stop loading immediately after successful response
+      setLoading(false)
       
-      const { access, refresh, user } = response.data
-      
-      // Set auth and show success message
-      setAuth(user, access, refresh)
-      toast.success('Регистрация успешна! Проверьте email для подтверждения.')
+      // Show success notification
+      toast.success('Профиль успешно зарегистрирован! Проверьте email для подтверждения.')
       toast('⚠️ Не забудьте проверить папку "Спам", если письмо не пришло', {
         icon: '📧',
         duration: 6000,
       })
       
-      // Stop loading before navigation
-      setLoading(false)
+      // Optionally set auth if response contains tokens
+      if (response.data?.access && response.data?.refresh && response.data?.user) {
+        try {
+          setAuth(response.data.user, response.data.access, response.data.refresh)
+        } catch (authError) {
+          // Ignore auth errors, user can login manually
+          console.warn('Could not set auth automatically:', authError)
+        }
+      }
       
-      // Redirect to dashboard immediately
-      console.log('Redirecting to dashboard...')
-      navigate('/')
+      // Clear form
+      setFormData({
+        email: '',
+        username: '',
+        password: '',
+        password_confirm: '',
+        invite_token: '',
+        first_name: '',
+        last_name: '',
+      })
+      setErrors({})
+      
     } catch (error: any) {
       console.error('Registration error:', error)
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        response: error.response?.data,
-        status: error.response?.status,
-      })
       
       // Handle timeout or network errors
       if (error.code === 'ECONNABORTED' || error.message === 'Network Error' || error.message?.includes('timeout')) {
@@ -302,7 +304,6 @@ export default function RegisterPage() {
       
       const errorMessage = Object.values(newErrors)[0] || errorData.error || error.message || 'Ошибка регистрации'
       toast.error(errorMessage)
-      setLoading(false)
     } finally {
       // Ensure loading is always set to false, even if something unexpected happens
       setLoading(false)

@@ -11,8 +11,11 @@ RUN npm install --maxsockets 1
 # Copy source
 COPY . .
 
-# Build with memory limit (512MB for Node.js)
-ENV NODE_OPTIONS="--max-old-space-size=512"
+# Build with aggressive memory limits and optimizations
+# Reduce memory limit to 384MB and use single-threaded build
+ENV NODE_OPTIONS="--max-old-space-size=384"
+ENV NODE_ENV=production
+# Build with minimal memory usage
 RUN npm run build
 
 # Production stage

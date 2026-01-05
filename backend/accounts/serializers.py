@@ -78,8 +78,15 @@ class RegisterSerializer(serializers.Serializer):
         user.is_email_verified = False
         user.save()
         
-        # Send verification email
-        self._send_verification_email(user, verification_token)
+        # Send verification email asynchronously to avoid blocking the response
+        import threading
+        request = self.context.get('request')
+        thread = threading.Thread(
+            target=self._send_verification_email,
+            args=(user, verification_token, request),
+            daemon=True
+        )
+        thread.start()
         
         # Create 3 invite tokens for new student
         if user.is_student:
@@ -87,10 +94,9 @@ class RegisterSerializer(serializers.Serializer):
         
         return user
     
-    def _send_verification_email(self, user, token):
+    def _send_verification_email(self, user, token, request):
         """Send email verification email."""
         from .utils import send_verification_email
-        request = self.context.get('request')
         send_verification_email(user, token, request)
 
 

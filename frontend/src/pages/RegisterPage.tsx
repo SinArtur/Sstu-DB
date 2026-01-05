@@ -270,7 +270,12 @@ export default function RegisterPage() {
       
       // Handle timeout or network errors
       if (error.code === 'ECONNABORTED' || error.message === 'Network Error' || error.message?.includes('timeout')) {
-        toast.error('Превышено время ожидания. Проверьте подключение к интернету.')
+        // Check if user might have been created (status 201 but response not received)
+        if (error.response?.status === 201 || !error.response) {
+          toast.error('Регистрация может быть завершена, но ответ не получен. Проверьте email или попробуйте войти.')
+        } else {
+          toast.error('Превышено время ожидания. Проверьте подключение к интернету.')
+        }
         setLoading(false)
         return
       }

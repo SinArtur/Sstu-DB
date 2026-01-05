@@ -5,13 +5,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies with memory optimization
+RUN npm install --maxsockets 1
 
 # Copy source
 COPY . .
 
-# Build
+# Build with memory limit (512MB for Node.js)
+ENV NODE_OPTIONS="--max-old-space-size=512"
 RUN npm run build
 
 # Production stage

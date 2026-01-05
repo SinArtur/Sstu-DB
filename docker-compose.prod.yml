@@ -64,6 +64,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    # Uncomment and adjust if you have memory issues during build:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1G
     volumes:
       - static_volume:/usr/share/nginx/html/static
     depends_on:

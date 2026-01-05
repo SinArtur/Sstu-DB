@@ -228,19 +228,19 @@ export default function RegisterPage() {
       const response = await api.post('/auth/register/', formData)
       const { access, refresh, user } = response.data
       
-      setAuth(user, access, refresh)
-      setLoading(false) // Stop loading immediately after success
+      // Stop loading immediately
+      setLoading(false)
       
+      // Set auth and show success message
+      setAuth(user, access, refresh)
       toast.success('Регистрация успешна! Проверьте email для подтверждения.')
       toast('⚠️ Не забудьте проверить папку "Спам", если письмо не пришло', {
         icon: '📧',
         duration: 6000,
       })
       
-      // Redirect to dashboard immediately after registration
-      setTimeout(() => {
-        navigate('/')
-      }, 1000)
+      // Redirect to dashboard immediately
+      navigate('/')
     } catch (error: any) {
       console.error('Registration error:', error)
       

@@ -229,6 +229,8 @@ export default function RegisterPage() {
       const { access, refresh, user } = response.data
       
       setAuth(user, access, refresh)
+      setLoading(false) // Stop loading immediately after success
+      
       toast.success('Регистрация успешна! Проверьте email для подтверждения.')
       toast('⚠️ Не забудьте проверить папку "Спам", если письмо не пришло', {
         icon: '📧',
@@ -240,7 +242,14 @@ export default function RegisterPage() {
         navigate('/')
       }, 1000)
     } catch (error: any) {
-      console.error('Registration error:', error.response?.data)
+      console.error('Registration error:', error)
+      
+      // Handle timeout or network errors
+      if (error.code === 'ECONNABORTED' || error.message === 'Network Error') {
+        toast.error('Превышено время ожидания. Проверьте подключение к интернету.')
+        setLoading(false)
+        return
+      }
       
       // Extract error messages from validation errors
       const errorData = error.response?.data || {}
@@ -269,9 +278,8 @@ export default function RegisterPage() {
       
       setErrors(newErrors)
       
-      const errorMessage = Object.values(newErrors)[0] || errorData.error || 'Ошибка регистрации'
+      const errorMessage = Object.values(newErrors)[0] || errorData.error || error.message || 'Ошибка регистрации'
       toast.error(errorMessage)
-    } finally {
       setLoading(false)
     }
   }

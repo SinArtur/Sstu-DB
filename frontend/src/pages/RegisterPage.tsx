@@ -234,7 +234,11 @@ export default function RegisterPage() {
         icon: '📧',
         duration: 6000,
       })
-      navigate('/')
+      
+      // Redirect to dashboard immediately after registration
+      setTimeout(() => {
+        navigate('/')
+      }, 1000)
     } catch (error: any) {
       console.error('Registration error:', error.response?.data)
       

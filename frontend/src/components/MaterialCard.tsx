@@ -99,7 +99,7 @@ export default function MaterialCard({ material }: MaterialCardProps) {
             {material.branch_path || material.branch_name || 'Без названия'}
           </button>
           {material.description && (
-            <p className="text-base text-foreground mt-2 leading-relaxed">{material.description}</p>
+            <p className="text-sm text-muted-foreground mt-1">{material.description}</p>
           )}
         </div>
         <div className="flex items-center gap-2">

@@ -1,14 +1,19 @@
 import { useAuthStore } from '@/store/authStore'
-import { Bell, User, LogOut } from 'lucide-react'
+import { Bell, User, LogOut, Menu } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/lib/api'
 import { getUserDisplayName } from '@/lib/utils'
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuthStore()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const { data: unreadCount } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -18,13 +23,39 @@ export default function Header() {
     },
   })
 
+  // Close user menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showUserMenu])
+
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-6">
+    <header className="h-16 border-b bg-card flex items-center justify-between px-4 md:px-6">
       <div className="flex items-center gap-4">
-        {/* Search removed - now shown only on branches page */}
+        {/* Mobile menu button */}
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="md:hidden p-2 hover:bg-accent rounded-lg"
+            aria-label="Открыть меню"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         <Link
           to="/profile"
           className="relative p-2 text-muted-foreground hover:text-foreground"
@@ -37,7 +68,7 @@ export default function Header() {
           )}
         </Link>
 
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent"
@@ -90,4 +121,3 @@ export default function Header() {
     </header>
   )
 }
-

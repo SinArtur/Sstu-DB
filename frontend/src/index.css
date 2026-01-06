@@ -55,6 +55,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Prevent text selection on mobile */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
   }
   input,
   textarea,
@@ -67,6 +70,12 @@
   }
   select option {
     @apply bg-background text-foreground;
+  }
+  /* Improve touch targets on mobile */
+  button,
+  a {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 

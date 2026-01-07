@@ -11,6 +11,8 @@ interface User {
   role_display: string
   is_email_verified: boolean
   can_access_admin_panel?: boolean
+  group?: number | null
+  group_name?: string | null
 }
 
 interface AuthState {

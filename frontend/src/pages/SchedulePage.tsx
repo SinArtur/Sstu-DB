@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { scheduleApi } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import { Calendar, Clock, MapPin, User, Search, Filter, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar, Clock, MapPin, User, Search, Filter, RefreshCw, Download } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 interface Lesson {
   id: number
@@ -61,6 +62,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'group' | 'teacher'>('group')
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     loadInitialData()
@@ -270,7 +272,6 @@ export default function SchedulePage() {
 
   const formatDateDisplay = (dateStr: string) => {
     const date = new Date(dateStr)
-    const weekday = WEEKDAYS[date.getDay() === 0 ? 6 : date.getDay() - 1]
     return date.toLocaleDateString('ru-RU', { 
       weekday: 'long', 
       day: 'numeric', 
@@ -279,11 +280,34 @@ export default function SchedulePage() {
     })
   }
 
-  const formatDateShort = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('ru-RU', { 
-      day: '2-digit', 
-      month: '2-digit' 
-    })
+  const handleSyncSchedule = async () => {
+    if (!user || user.role !== 'admin') {
+      toast.error('У вас нет прав для синхронизации расписания')
+      return
+    }
+
+    try {
+      setSyncing(true)
+      toast.loading('Синхронизация расписания...', { id: 'sync' })
+      
+      const response = await scheduleApi.triggerSyncSync()
+      
+      toast.success(
+        `Синхронизация завершена! Обновлено групп: ${response.data.groups_updated}, Добавлено занятий: ${response.data.lessons_added}`,
+        { id: 'sync', duration: 5000 }
+      )
+      
+      // Перезагружаем данные
+      await loadInitialData()
+      if (selectedGroup || selectedTeacher) {
+        await loadLessons()
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Ошибка при синхронизации расписания'
+      toast.error(errorMessage, { id: 'sync', duration: 5000 })
+    } finally {
+      setSyncing(false)
+    }
   }
 
   if (loading && lessons.length === 0) {
@@ -304,13 +328,25 @@ export default function SchedulePage() {
             Просматривайте расписание пар и экзаменов
           </p>
         </div>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Filter className="h-5 w-5" />
-          Фильтры
-        </button>
+        <div className="flex items-center gap-2">
+          {user?.role === 'admin' && (
+            <button
+              onClick={handleSyncSchedule}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Download className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Синхронизация...' : 'Обновить расписание'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Filter className="h-5 w-5" />
+            Фильтры
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

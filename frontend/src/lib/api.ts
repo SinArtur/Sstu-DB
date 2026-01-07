@@ -99,7 +99,10 @@ export const scheduleApi = {
   // Get latest update
   getLatestUpdate: () => api.get('/schedule/updates/latest/'),
   
-  // Trigger sync (moderators/admins only)
+  // Trigger sync (admins only, async)
   triggerSync: () => api.post('/schedule/updates/trigger_sync/'),
+  
+  // Trigger sync synchronously (admins only)
+  triggerSyncSync: () => api.post('/schedule/updates/trigger_sync_sync/'),
 }
 

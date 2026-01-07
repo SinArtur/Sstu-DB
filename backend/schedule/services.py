@@ -19,8 +19,10 @@ class ScheduleSyncService:
     def __init__(self):
         # Get proxy from settings if available
         proxy = getattr(settings, 'SSTU_SCHEDULE_PROXY', None) or os.getenv('SSTU_SCHEDULE_PROXY')
-        timeout = getattr(settings, 'SSTU_SCHEDULE_TIMEOUT', 60)  # Increased timeout for slow connections
-        self.parser = SSTUScheduleParser(timeout=timeout, proxy=proxy)
+        # Get Cloudflare Worker URL from settings if available
+        cloudflare_worker_url = getattr(settings, 'SSTU_CLOUDFLARE_WORKER_URL', None) or os.getenv('SSTU_CLOUDFLARE_WORKER_URL')
+        timeout = getattr(settings, 'SSTU_SCHEDULE_TIMEOUT', 30)
+        self.parser = SSTUScheduleParser(timeout=timeout, proxy=proxy, cloudflare_worker_url=cloudflare_worker_url)
         self.stats = {
             'groups_updated': 0,
             'lessons_added': 0,

@@ -25,9 +25,24 @@ class SSTUScheduleParser:
     """Parser for rasp.sstu.ru schedule."""
     
     BASE_URL = "https://rasp.sstu.ru"
-    MAIN_PAGE = f"{BASE_URL}/"
-    GROUP_PAGE = f"{BASE_URL}/rasp/group/"
-    TEACHER_PAGE = f"{BASE_URL}/rasp/teacher/"
+    
+    def __init__(self, timeout: int = 30, proxy: Optional[str] = None, cloudflare_worker_url: Optional[str] = None):
+        """Initialize parser with timeout, optional proxy, and optional Cloudflare Worker URL."""
+        self.timeout = timeout
+        self.proxy = proxy
+        self.cloudflare_worker_url = cloudflare_worker_url
+        
+        # If Cloudflare Worker URL is provided, use it as base URL
+        if self.cloudflare_worker_url:
+            # Remove trailing slash if present
+            worker_url = self.cloudflare_worker_url.rstrip('/')
+            self.BASE_URL = f"{worker_url}?url=https://rasp.sstu.ru"
+        else:
+            self.BASE_URL = "https://rasp.sstu.ru"
+        
+        self.MAIN_PAGE = f"{self.BASE_URL}/"
+        self.GROUP_PAGE = f"{self.BASE_URL}/rasp/group/"
+        self.TEACHER_PAGE = f"{self.BASE_URL}/rasp/teacher/"
     
     # Время пар
     LESSON_TIMES = {
@@ -64,10 +79,20 @@ class SSTUScheduleParser:
         'воскресенье': 7,
     }
     
-    def __init__(self, timeout: int = 30, proxy: Optional[str] = None):
-        """Initialize parser with timeout and optional proxy."""
+    def __init__(self, timeout: int = 30, proxy: Optional[str] = None, cloudflare_worker_url: Optional[str] = None):
+        """Initialize parser with timeout, optional proxy, and optional Cloudflare Worker URL."""
         self.timeout = timeout
         self.proxy = proxy
+        self.cloudflare_worker_url = cloudflare_worker_url
+        
+        # If Cloudflare Worker URL is provided, use it to modify BASE_URL
+        if self.cloudflare_worker_url:
+            worker_url = self.cloudflare_worker_url.rstrip('/')
+            # Worker will proxy requests, so we keep original URLs but will route through worker
+            self._worker_base = worker_url
+        else:
+            self._worker_base = None
+        
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -97,23 +122,33 @@ class SSTUScheduleParser:
     
     def fetch_page(self, url: str, retries: int = 3) -> Optional[BeautifulSoup]:
         """Fetch and parse page with retry logic."""
+        # If Cloudflare Worker URL is provided, route through it
+        if self._worker_base:
+            # Construct worker URL with target URL as parameter
+            worker_url = f"{self._worker_base}?url={url}"
+            fetch_url = worker_url
+        else:
+            fetch_url = url
+        
         for attempt in range(retries):
             try:
-                response = self.session.get(url, timeout=self.timeout)
+                response = self.session.get(fetch_url, timeout=self.timeout)
                 response.raise_for_status()
                 response.encoding = 'utf-8'
                 return BeautifulSoup(response.text, 'html.parser')
             except requests.Timeout as e:
-                logger.warning(f"Timeout fetching {url} (attempt {attempt + 1}/{retries}): {e}")
+                logger.warning(f"Timeout fetching {fetch_url} (attempt {attempt + 1}/{retries}): {e}")
                 if attempt < retries - 1:
                     continue
-                logger.error(f"Failed to fetch {url} after {retries} attempts")
+                logger.error(f"Failed to fetch {fetch_url} after {retries} attempts")
             except requests.RequestException as e:
-                logger.error(f"Error fetching {url} (attempt {attempt + 1}/{retries}): {e}")
+                logger.error(f"Error fetching {fetch_url} (attempt {attempt + 1}/{retries}): {e}")
                 if attempt < retries - 1:
                     continue
                 if self.proxy:
                     logger.warning(f"Using proxy: {self.proxy}")
+                if self._worker_base:
+                    logger.warning(f"Using Cloudflare Worker: {self._worker_base}")
             return None
         return None
     

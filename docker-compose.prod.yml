@@ -50,7 +50,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - FRONTEND_URL=${FRONTEND_URL}
       - SSTU_SCHEDULE_PROXY=${SSTU_SCHEDULE_PROXY:-}
-      - SSTU_SCHEDULE_TIMEOUT=${SSTU_SCHEDULE_TIMEOUT:-60}
+      - SSTU_SCHEDULE_TIMEOUT=${SSTU_SCHEDULE_TIMEOUT:-30}
+      - SSTU_CLOUDFLARE_WORKER_URL=${SSTU_CLOUDFLARE_WORKER_URL:-}
     depends_on:
       db:
         condition: service_healthy

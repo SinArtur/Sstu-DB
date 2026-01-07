@@ -55,13 +55,19 @@ class SSTUScheduleParser:
         'воскресенье': 7,
     }
     
-    def __init__(self, timeout: int = 30):
-        """Initialize parser with timeout."""
+    def __init__(self, timeout: int = 30, proxy: Optional[str] = None):
+        """Initialize parser with timeout and optional proxy."""
         self.timeout = timeout
+        self.proxy = proxy
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
+        if self.proxy:
+            self.session.proxies = {
+                'http': self.proxy,
+                'https': self.proxy
+            }
     
     def fetch_page(self, url: str) -> Optional[BeautifulSoup]:
         """Fetch and parse page."""
@@ -72,6 +78,8 @@ class SSTUScheduleParser:
             return BeautifulSoup(response.text, 'html.parser')
         except requests.RequestException as e:
             logger.error(f"Error fetching {url}: {e}")
+            if self.proxy:
+                logger.warning(f"Using proxy: {self.proxy}")
             return None
     
     def parse_main_page(self) -> List[Dict]:

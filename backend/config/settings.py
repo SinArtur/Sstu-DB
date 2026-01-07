@@ -202,6 +202,12 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@university.local')
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
+# Schedule Parser Configuration
+# Proxy for accessing rasp.sstu.ru (if needed, e.g., for servers outside Russia)
+# Format: http://user:pass@proxy.example.com:8080 or http://proxy.example.com:8080
+SSTU_SCHEDULE_PROXY = os.getenv('SSTU_SCHEDULE_PROXY', None)
+SSTU_SCHEDULE_TIMEOUT = int(os.getenv('SSTU_SCHEDULE_TIMEOUT', '60'))  # Timeout in seconds
+
 # Rate Limiting
 RATELIMIT_ENABLE = True
 RATELIMIT_USE_CACHE = 'default'

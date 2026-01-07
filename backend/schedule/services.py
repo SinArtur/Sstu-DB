@@ -2,9 +2,11 @@
 Service for synchronizing schedule data from SSTU website.
 """
 import logging
+import os
 from typing import List, Dict, Optional
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from .models import Institute, Group, Teacher, Subject, Lesson, ScheduleUpdate
 from .parser import SSTUScheduleParser
 
@@ -15,7 +17,10 @@ class ScheduleSyncService:
     """Service for synchronizing schedule data."""
     
     def __init__(self):
-        self.parser = SSTUScheduleParser()
+        # Get proxy from settings if available
+        proxy = getattr(settings, 'SSTU_SCHEDULE_PROXY', None) or os.getenv('SSTU_SCHEDULE_PROXY')
+        timeout = getattr(settings, 'SSTU_SCHEDULE_TIMEOUT', 60)  # Increased timeout for slow connections
+        self.parser = SSTUScheduleParser(timeout=timeout, proxy=proxy)
         self.stats = {
             'groups_updated': 0,
             'lessons_added': 0,

@@ -24,7 +24,7 @@ class ScheduleSyncService:
         timeout = getattr(settings, 'SSTU_SCHEDULE_TIMEOUT', 60)  # Default 60 seconds
         # If using Cloudflare Worker, increase timeout as it may be slower
         if cloudflare_worker_url:
-            timeout = max(timeout, 90)  # At least 90 seconds for Worker
+            timeout = max(timeout, 120)  # At least 120 seconds for Worker (it's slow)
         self.parser = SSTUScheduleParser(timeout=timeout, proxy=proxy, cloudflare_worker_url=cloudflare_worker_url)
         self.stats = {
             'groups_updated': 0,

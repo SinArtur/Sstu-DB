@@ -42,8 +42,16 @@ load_dotenv(env_path)
 # Настройки из переменных окружения
 API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:8000/api')
 API_TOKEN = os.getenv('API_TOKEN', '')
+API_REFRESH_TOKEN = os.getenv('API_REFRESH_TOKEN', '')  # Refresh token для автоматического обновления
+# Учетные данные для автоматического логина (если токены не указаны)
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', '')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', '')
 SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '3'))  # Каждые 3 часа
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+# Глобальные переменные для хранения токенов (могут обновляться)
+_current_token = API_TOKEN
+_current_refresh_token = API_REFRESH_TOKEN
 
 # Настройка логирования
 log_dir = Path(__file__).parent / 'logs'
@@ -61,15 +69,106 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def sync_schedule():
-    """Вызывает API для синхронизации расписания."""
-    if not API_TOKEN:
-        logger.error("API_TOKEN не установлен в .env файле!")
+def login_and_get_tokens():
+    """Автоматически логинится и получает токены через API."""
+    global _current_token, _current_refresh_token
+    
+    if not ADMIN_EMAIL or not ADMIN_PASSWORD:
+        logger.error("ADMIN_EMAIL и ADMIN_PASSWORD не установлены в .env файле!")
         return False
     
+    try:
+        url = f"{API_BASE_URL}/auth/login/"
+        response = requests.post(
+            url,
+            json={'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD},
+            headers={'Content-Type': 'application/json'},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            _current_token = data.get('access')
+            _current_refresh_token = data.get('refresh')
+            
+            if _current_token and _current_refresh_token:
+                logger.info("Успешно получены токены через автоматический вход")
+                # Опционально: сохранить токены в файл (можно закомментировать для безопасности)
+                # save_tokens_to_env_file(_current_token, _current_refresh_token)
+                return True
+            else:
+                logger.error("Не удалось получить токены из ответа API")
+                return False
+        else:
+            error_msg = response.json().get('non_field_errors', ['Неизвестная ошибка'])
+            logger.error(f"Ошибка входа (код {response.status_code}): {error_msg}")
+            return False
+    except Exception as e:
+        logger.error(f"Ошибка при автоматическом входе: {str(e)}")
+        return False
+
+
+def refresh_access_token():
+    """Обновляет access token используя refresh token."""
+    global _current_token, _current_refresh_token
+    
+    refresh_token = _current_refresh_token or API_REFRESH_TOKEN
+    
+    if not refresh_token:
+        logger.warning("Refresh token не установлен. Попытка автоматического входа...")
+        # Пробуем автоматически войти
+        if login_and_get_tokens():
+            return True
+        logger.error("Не удалось обновить токен и автоматически войти")
+        return False
+    
+    try:
+        url = f"{API_BASE_URL}/auth/token/refresh/"
+        response = requests.post(url, json={'refresh': refresh_token}, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            new_token = data.get('access')
+            if new_token:
+                _current_token = new_token
+                logger.info("Токен доступа успешно обновлен")
+                return True
+            else:
+                logger.error("Не удалось получить новый токен из ответа")
+                # Пробуем автоматически войти
+                logger.info("Пробую автоматический вход...")
+                return login_and_get_tokens()
+        else:
+            logger.warning(f"Ошибка обновления токена (код {response.status_code}). Пробую автоматический вход...")
+            # Если refresh token истек, пробуем автоматически войти
+            return login_and_get_tokens()
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении токена: {str(e)}")
+        return False
+
+
+def sync_schedule():
+    """Вызывает API для синхронизации расписания."""
+    global _current_token, _current_refresh_token
+    
+    # Если токен не установлен, пробуем автоматически войти
+    if not _current_token and not API_TOKEN:
+        if ADMIN_EMAIL and ADMIN_PASSWORD:
+            logger.info("Токен не установлен, выполняю автоматический вход...")
+            if not login_and_get_tokens():
+                logger.error("Не удалось получить токены. Проверьте ADMIN_EMAIL и ADMIN_PASSWORD в .env файле.")
+                return False
+        else:
+            logger.error("API_TOKEN не установлен и автоматический вход невозможен (нет ADMIN_EMAIL/ADMIN_PASSWORD)!")
+            return False
+    
+    # Используем текущий токен (может быть обновлен)
+    token = _current_token or API_TOKEN
+    
+    # URL для синхронной синхронизации (DRF action)
     url = f"{API_BASE_URL}/schedule/updates/trigger_sync_sync/"
     headers = {
-        'Authorization': f'Bearer {API_TOKEN}',
+        'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json'
     }
     
@@ -86,6 +185,28 @@ def sync_schedule():
                 f"Удалено занятий: {data.get('lessons_removed', 0)}"
             )
             return True
+        elif response.status_code == 401:
+            # Токен истек, попробуем обновить
+            logger.warning("Токен истек, пытаюсь обновить...")
+            if refresh_access_token():
+                # Повторяем запрос с новым токеном
+                headers['Authorization'] = f'Bearer {_current_token}'
+                response = requests.post(url, headers=headers, timeout=600)
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(
+                        f"Синхронизация успешно завершена после обновления токена! "
+                        f"Обновлено групп: {data.get('groups_updated', 0)}, "
+                        f"Добавлено занятий: {data.get('lessons_added', 0)}, "
+                        f"Удалено занятий: {data.get('lessons_removed', 0)}"
+                    )
+                    return True
+                else:
+                    logger.error(f"Ошибка синхронизации после обновления токена (код {response.status_code})")
+                    return False
+            else:
+                logger.error("Не удалось обновить токен. Обновите токены вручную в файле .env")
+                return False
         elif response.status_code == 403:
             logger.error("Ошибка доступа: У вас нет прав администратора")
             return False

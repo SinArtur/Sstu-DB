@@ -86,6 +86,7 @@ services:
 
 volumes:
   postgres_data:
+    name: sstudb_postgres_data  # Явное имя volume для предотвращения удаления
   static_volume:
   media_volume:
 

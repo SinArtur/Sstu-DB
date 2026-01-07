@@ -22,6 +22,13 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Ensure UTF-8 output on Windows console (prevents garbled Cyrillic logs)
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Попробуем импортировать schedule для периодического выполнения
 try:
     import schedule
@@ -46,6 +53,11 @@ API_REFRESH_TOKEN = os.getenv('API_REFRESH_TOKEN', '')  # Refresh token для �
 # Учетные данные для автоматического логина (если токены не указаны)
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL', '')
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', '')
+
+# Настройки локального парсинга rasp.sstu.ru (на вашем ПК)
+SSTU_TIMEOUT = int(os.getenv('SSTU_TIMEOUT', '60'))
+SSTU_PROXY = os.getenv('SSTU_PROXY', '').strip() or None
+
 SYNC_INTERVAL_HOURS = int(os.getenv('SYNC_INTERVAL_HOURS', '3'))  # Каждые 3 часа
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
@@ -148,86 +160,164 @@ def refresh_access_token():
 
 
 def sync_schedule():
-    """Вызывает API для синхронизации расписания."""
+    """
+    Локально парсит rasp.sstu.ru (на вашем ПК) и загружает данные на сервер через API.
+    Сервер НЕ делает никаких запросов к rasp.sstu.ru.
+    """
     global _current_token, _current_refresh_token
     
-    # Если токен не установлен, пробуем автоматически войти
+    # Ensure we have an access token (login/refresh)
     if not _current_token and not API_TOKEN:
         if ADMIN_EMAIL and ADMIN_PASSWORD:
             logger.info("Токен не установлен, выполняю автоматический вход...")
             if not login_and_get_tokens():
-                logger.error("Не удалось получить токены. Проверьте ADMIN_EMAIL и ADMIN_PASSWORD в .env файле.")
+                logger.error("Не удалось получить токены. Проверьте ADMIN_EMAIL и ADMIN_PASSWORD в schedule_sync_client.env")
                 return False
         else:
-            logger.error("API_TOKEN не установлен и автоматический вход невозможен (нет ADMIN_EMAIL/ADMIN_PASSWORD)!")
+            logger.error("Нет токена и нет ADMIN_EMAIL/ADMIN_PASSWORD — авторизация невозможна")
             return False
-    
-    # Используем текущий токен (может быть обновлен)
-    token = _current_token or API_TOKEN
-    
-    # URL для синхронной синхронизации (DRF action)
-    url = f"{API_BASE_URL}/schedule/updates/trigger_sync_sync/"
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
-    }
-    
-    try:
-        logger.info("Начинаю синхронизацию расписания...")
-        response = requests.post(url, headers=headers, timeout=600)  # 10 минут таймаут
-        
-        if response.status_code == 200:
-            data = response.json()
-            logger.info(
-                f"Синхронизация успешно завершена! "
-                f"Обновлено групп: {data.get('groups_updated', 0)}, "
-                f"Добавлено занятий: {data.get('lessons_added', 0)}, "
-                f"Удалено занятий: {data.get('lessons_removed', 0)}"
-            )
-            return True
-        elif response.status_code == 401:
-            # Токен истек, попробуем обновить
-            logger.warning("Токен истек, пытаюсь обновить...")
+
+    def _get_token() -> str:
+        return _current_token or API_TOKEN
+
+    def _post_json(url: str, payload: dict, timeout: int = 600) -> requests.Response:
+        headers = {'Authorization': f'Bearer {_get_token()}', 'Content-Type': 'application/json'}
+        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if resp.status_code == 401:
+            logger.warning("Access token истек (401). Пробую обновить/перелогиниться...")
             if refresh_access_token():
-                # Повторяем запрос с новым токеном
-                headers['Authorization'] = f'Bearer {_current_token}'
-                response = requests.post(url, headers=headers, timeout=600)
-                if response.status_code == 200:
-                    data = response.json()
-                    logger.info(
-                        f"Синхронизация успешно завершена после обновления токена! "
-                        f"Обновлено групп: {data.get('groups_updated', 0)}, "
-                        f"Добавлено занятий: {data.get('lessons_added', 0)}, "
-                        f"Удалено занятий: {data.get('lessons_removed', 0)}"
-                    )
-                    return True
-                else:
-                    logger.error(f"Ошибка синхронизации после обновления токена (код {response.status_code})")
-                    return False
-            else:
-                logger.error("Не удалось обновить токен. Обновите токены вручную в файле .env")
-                return False
-        elif response.status_code == 403:
-            logger.error("Ошибка доступа: У вас нет прав администратора")
+                headers['Authorization'] = f'Bearer {_get_token()}'
+                resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        return resp
+
+    # Import parser from backend/schedule/parser.py without needing Django
+    try:
+        # Добавляем путь к backend в sys.path
+        script_dir = Path(__file__).parent
+        backend_dir = script_dir / 'backend'
+        
+        # Проверяем, что папка backend существует
+        if not backend_dir.exists():
+            logger.error(f"Папка 'backend' не найдена рядом со скриптом. Ожидается: {backend_dir}")
             return False
-        elif response.status_code == 400:
-            error_msg = response.json().get('error', 'Неизвестная ошибка')
-            logger.warning(f"Синхронизация уже выполняется: {error_msg}")
-            return False
-        else:
-            error_msg = response.json().get('error', 'Неизвестная ошибка') if response.content else 'Нет ответа от сервера'
-            logger.error(f"Ошибка синхронизации (код {response.status_code}): {error_msg}")
-            return False
-            
-    except requests.exceptions.Timeout:
-        logger.error("Таймаут при запросе к API. Синхронизация может занять много времени.")
-        return False
-    except requests.exceptions.ConnectionError:
-        logger.error(f"Не удалось подключиться к API: {API_BASE_URL}")
+        
+        # Добавляем backend в путь для импорта модуля schedule
+        if str(script_dir) not in sys.path:
+            sys.path.insert(0, str(script_dir))
+        
+        # Импортируем парсер
+        from backend.schedule.parser import SSTUScheduleParser  # type: ignore
+    except ImportError as e:
+        logger.error(f"Не удалось импортировать парсер. Убедитесь, что папка 'backend/schedule' существует. Ошибка: {e}")
+        logger.error(f"Текущий путь скрипта: {script_dir}")
+        logger.error(f"Ожидаемый путь к парсеру: {backend_dir / 'schedule' / 'parser.py'}")
         return False
     except Exception as e:
-        logger.error(f"Неожиданная ошибка: {str(e)}", exc_info=True)
+        logger.error(f"Неожиданная ошибка при импорте парсера: {e}", exc_info=True)
         return False
+
+    parser = SSTUScheduleParser(timeout=SSTU_TIMEOUT, proxy=SSTU_PROXY, cloudflare_worker_url=None)
+
+    logger.info("Начинаю локальный парсинг rasp.sstu.ru...")
+    institutes = parser.parse_main_page()
+    if not institutes:
+        logger.error("Не удалось распарсить главную страницу rasp.sstu.ru (institutes пустой)")
+        return False
+
+    def _ser_time(t):
+        if t is None:
+            return None
+        return t.strftime('%H:%M:%S')
+
+    def _ser_date(d):
+        if d is None:
+            return None
+        return d.isoformat()
+
+    total_groups = 0
+    ok_groups = 0
+    total_lessons = 0
+
+    import_url = f"{API_BASE_URL}/schedule/updates/import_group/"
+
+    for inst in institutes:
+        inst_payload = {'name': inst.get('name'), 'sstu_id': inst.get('sstu_id')}
+        for grp in inst.get('groups', []) or []:
+            group_sstu_id = grp.get('sstu_id')
+            if not group_sstu_id:
+                continue
+            total_groups += 1
+            group_payload = {
+                'name': grp.get('name'),
+                'sstu_id': group_sstu_id,
+                'education_form': grp.get('education_form'),
+                'degree_type': grp.get('degree_type'),
+                'course_number': grp.get('course_number'),
+            }
+
+            lessons = parser.parse_group_schedule(group_sstu_id) or []
+            total_lessons += len(lessons)
+
+            lessons_payload = []
+            for l in lessons:
+                # Parser returns python date/time objects; convert to JSON-safe strings
+                lessons_payload.append({
+                    'subject_name': l.get('subject_name'),
+                    'teacher_name': l.get('teacher_name'),
+                    'teacher_id': l.get('teacher_id'),
+                    'teacher_url': l.get('teacher_url'),
+                    'lesson_type': l.get('lesson_type'),
+                    'room': l.get('room'),
+                    'weekday': l.get('weekday'),
+                    'lesson_number': l.get('lesson_number'),
+                    'start_time': _ser_time(l.get('start_time')),
+                    'end_time': _ser_time(l.get('end_time')),
+                    'specific_date': _ser_date(l.get('specific_date')),
+                    'week_number': l.get('week_number'),
+                    'additional_info': l.get('additional_info', ''),
+                })
+
+            payload = {
+                'institute': inst_payload,
+                'group': group_payload,
+                'lessons': lessons_payload,
+            }
+
+            try:
+                resp = _post_json(import_url, payload, timeout=60)  # Уменьшил таймаут до 60 секунд
+                if resp.status_code == 200:
+                    ok_groups += 1
+                    try:
+                        data = resp.json()
+                        logger.info(
+                            f"Импорт OK: {group_payload.get('name')} "
+                            f"(создано: {data.get('lessons_created')}, обновлено: {data.get('lessons_updated')}, удалено: {data.get('lessons_removed')})"
+                        )
+                    except Exception:
+                        logger.info(f"Импорт OK: {group_payload.get('name')}")
+                elif resp.status_code == 405:
+                    logger.error(
+                        f"Импорт FAIL: {group_payload.get('name')} -> 405 (Метод POST не разрешен). "
+                        f"Возможно, на сервере старый код без эндпоинта /api/schedule/updates/import_group/. "
+                        f"Обновите сервер или проверьте URL."
+                    )
+                else:
+                    logger.error(f"Импорт FAIL: {group_payload.get('name')} -> {resp.status_code} {resp.text[:200]}")
+            except requests.exceptions.Timeout:
+                logger.error(
+                    f"Импорт FAIL: {group_payload.get('name')} -> Таймаут подключения к серверу. "
+                    f"Проверьте доступность {API_BASE_URL}"
+                )
+            except requests.exceptions.ConnectionError as e:
+                logger.error(
+                    f"Импорт FAIL: {group_payload.get('name')} -> Ошибка подключения: {e}. "
+                    f"Проверьте доступность {API_BASE_URL}"
+                )
+            except Exception as e:
+                logger.error(f"Импорт FAIL: {group_payload.get('name')} -> Неожиданная ошибка: {e}")
+
+    logger.info(f"Импорт завершен. Групп: {ok_groups}/{total_groups}, занятий распаршено: {total_lessons}")
+    return ok_groups == total_groups
 
 
 def run_once():
@@ -278,23 +368,23 @@ def run_scheduled():
 
 def main():
     """Главная функция."""
-    # Проверяем наличие токена
-    if not API_TOKEN:
+    # Проверяем наличие либо токена, либо учетных данных для автоматического входа
+    if not API_TOKEN and not (ADMIN_EMAIL and ADMIN_PASSWORD):
         logger.error("=" * 60)
-        logger.error("ОШИБКА: API_TOKEN не установлен!")
+        logger.error("ОШИБКА: Не указаны данные для авторизации!")
         logger.error("=" * 60)
-        logger.error("Создайте файл .env в той же папке, что и скрипт, со следующим содержимым:")
+        logger.error("ВАРИАНТ 1 (РЕКОМЕНДУЕТСЯ): Автоматический вход")
+        logger.error("Укажите в файле schedule_sync_client.env:")
+        logger.error("  ADMIN_EMAIL=ваш_email@example.com")
+        logger.error("  ADMIN_PASSWORD=ваш_пароль")
         logger.error("")
-        logger.error("API_BASE_URL=http://your-server.com/api")
-        logger.error("API_TOKEN=your_access_token_here")
-        logger.error("SYNC_INTERVAL_HOURS=3")
-        logger.error("LOG_LEVEL=INFO")
+        logger.error("ВАРИАНТ 2: Ручной ввод токена")
+        logger.error("Укажите в файле schedule_sync_client.env:")
+        logger.error("  API_TOKEN=your_access_token_here")
+        logger.error("  API_REFRESH_TOKEN=your_refresh_token_here (опционально)")
         logger.error("")
-        logger.error("Чтобы получить токен:")
-        logger.error("1. Войдите на сайт")
-        logger.error("2. Откройте консоль браузера (F12)")
-        logger.error("3. Выполните: localStorage.getItem('auth-storage')")
-        logger.error("4. Найдите accessToken в JSON")
+        logger.error("Файл должен находиться в той же папке, что и скрипт:")
+        logger.error(f"  {env_path}")
         logger.error("=" * 60)
         sys.exit(1)
     

@@ -101,12 +101,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
-# Use DATABASE_URL if available (from docker-compose), otherwise fall back to SQLite for local development
+# Database configuration
+# Priority: 1. DATABASE_URL from env, 2. Individual DB_* env vars, 3. SQLite for local dev
 DATABASE_URL = os.getenv('DATABASE_URL', '')
+
 if DATABASE_URL:
     # Parse DATABASE_URL (format: postgresql://user:password@host:port/dbname)
     import re
-    match = re.match(r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)', DATABASE_URL)
+    # Более надежный паттерн для парсинга DATABASE_URL
+    match = re.match(r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+?)(\?.*)?$', DATABASE_URL)
     if match:
         DATABASES = {
             'default': {
@@ -118,16 +121,32 @@ if DATABASE_URL:
                 'PORT': match.group(4),
             }
         }
+        # logger.info(f"Using PostgreSQL database: {match.group(5)} on {match.group(3)}")
     else:
         # Fallback to SQLite if DATABASE_URL format is invalid
+        # logger.warning(f"Invalid DATABASE_URL format, falling back to SQLite: {DATABASE_URL}")
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': BASE_DIR / 'db.sqlite3',
             }
         }
+elif os.getenv('DB_NAME'):
+    # Use individual DB_* environment variables (for docker-compose without DATABASE_URL)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'sstudb'),
+            'USER': os.getenv('DB_USER', 'sstudb_user'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'sstudb_password'),
+            'HOST': os.getenv('DB_HOST', 'db'),  # 'db' is the service name in docker-compose
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
+    # logger.info(f"Using PostgreSQL database: {DATABASES['default']['NAME']} on {DATABASES['default']['HOST']}")
 else:
     # Use SQLite for local development (when DATABASE_URL is not set)
+    # logger.info("Using SQLite for local development")
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',

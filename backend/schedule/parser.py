@@ -7,7 +7,6 @@ from datetime import datetime, time, date, timedelta
 from typing import List, Dict, Optional, Tuple
 import requests
 from bs4 import BeautifulSoup
-from django.utils import timezone
 
 # Try to import SOCKS support
 try:
@@ -136,9 +135,20 @@ class SSTUScheduleParser:
                     if chunk:
                         content += chunk
                 
-                # Decode content
-                response.encoding = response.apparent_encoding or 'utf-8'
-                text = content.decode(response.encoding, errors='ignore')
+                # Decode content - определяем кодировку вручную или используем указанную
+                # Проверяем Content-Type заголовок для кодировки
+                encoding = 'utf-8'  # По умолчанию
+                if response.headers.get('Content-Type'):
+                    content_type = response.headers['Content-Type'].lower()
+                    if 'charset=' in content_type:
+                        encoding = content_type.split('charset=')[1].split(';')[0].strip()
+                
+                # Пробуем декодировать
+                try:
+                    text = content.decode(encoding, errors='ignore')
+                except (UnicodeDecodeError, LookupError):
+                    # Если не получилось, пробуем utf-8
+                    text = content.decode('utf-8', errors='ignore')
                 
                 return BeautifulSoup(text, 'html.parser')
             except requests.Timeout as e:

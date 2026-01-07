@@ -64,10 +64,43 @@ class SSTUScheduleParser:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         })
         if self.proxy:
-            self.session.proxies = {
-                'http': self.proxy,
-                'https': self.proxy
-            }
+            # Support both HTTP and SOCKS5 proxies
+            if self.proxy.startswith('socks5://') or self.proxy.startswith('socks4://'):
+                # SOCKS proxy - requires requests[socks] package
+                try:
+                    import socks
+                    import socket
+                    # Parse SOCKS proxy
+                    if self.proxy.startswith('socks5://'):
+                        proxy_url = self.proxy.replace('socks5://', '')
+                    else:
+                        proxy_url = self.proxy.replace('socks4://', '')
+                    
+                    if '@' in proxy_url:
+                        # With auth: socks5://user:pass@host:port
+                        auth, host_port = proxy_url.rsplit('@', 1)
+                        user, password = auth.split(':', 1)
+                        host, port = host_port.split(':')
+                    else:
+                        # Without auth: socks5://host:port
+                        host, port = proxy_url.split(':')
+                        user = password = None
+                    
+                    port = int(port)
+                    socks_type = socks.SOCKS5 if 'socks5' in self.proxy else socks.SOCKS4
+                    socks.set_default_proxy(socks_type, host, port, username=user, password=password)
+                    socket.socket = socks.socksocket
+                    logger.info(f"Using SOCKS proxy: {host}:{port}")
+                except ImportError:
+                    logger.error("SOCKS proxy requires 'requests[socks]' package. Install with: pip install requests[socks]")
+                    raise
+            else:
+                # HTTP proxy
+                self.session.proxies = {
+                    'http': self.proxy,
+                    'https': self.proxy
+                }
+                logger.info(f"Using HTTP proxy: {self.proxy}")
     
     def fetch_page(self, url: str) -> Optional[BeautifulSoup]:
         """Fetch and parse page."""

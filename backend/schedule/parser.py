@@ -95,18 +95,27 @@ class SSTUScheduleParser:
                 }
                 logger.info(f"Using HTTP proxy: {self.proxy}")
     
-    def fetch_page(self, url: str) -> Optional[BeautifulSoup]:
-        """Fetch and parse page."""
-        try:
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
-            response.encoding = 'utf-8'
-            return BeautifulSoup(response.text, 'html.parser')
-        except requests.RequestException as e:
-            logger.error(f"Error fetching {url}: {e}")
-            if self.proxy:
-                logger.warning(f"Using proxy: {self.proxy}")
+    def fetch_page(self, url: str, retries: int = 3) -> Optional[BeautifulSoup]:
+        """Fetch and parse page with retry logic."""
+        for attempt in range(retries):
+            try:
+                response = self.session.get(url, timeout=self.timeout)
+                response.raise_for_status()
+                response.encoding = 'utf-8'
+                return BeautifulSoup(response.text, 'html.parser')
+            except requests.Timeout as e:
+                logger.warning(f"Timeout fetching {url} (attempt {attempt + 1}/{retries}): {e}")
+                if attempt < retries - 1:
+                    continue
+                logger.error(f"Failed to fetch {url} after {retries} attempts")
+            except requests.RequestException as e:
+                logger.error(f"Error fetching {url} (attempt {attempt + 1}/{retries}): {e}")
+                if attempt < retries - 1:
+                    continue
+                if self.proxy:
+                    logger.warning(f"Using proxy: {self.proxy}")
             return None
+        return None
     
     def parse_main_page(self) -> List[Dict]:
         """Parse main page to get all institutes and groups."""

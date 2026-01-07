@@ -19,6 +19,15 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# CSRF settings
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
+# Add HTTPS origins if in production
+if not DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend([
+        'https://polikek.ru',
+        'https://www.polikek.ru',
+    ])
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',

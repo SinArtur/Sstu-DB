@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Home, BookOpen, Settings, Calendar, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 const navItems = [
   { path: '/', label: 'Главная', icon: Home },
@@ -17,13 +17,35 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const location = useLocation()
+  const prevPathnameRef = useRef(location.pathname)
+  const backdropReadyRef = useRef(false)
 
-  // Close sidebar when route changes on mobile
+  // Allow backdrop to close menu only after a short delay to prevent accidental closes
   useEffect(() => {
-    if (onClose) {
-      onClose()
+    if (isOpen) {
+      // Small delay to prevent backdrop from closing menu immediately after opening
+      const timer = setTimeout(() => {
+        backdropReadyRef.current = true
+      }, 100)
+      return () => {
+        clearTimeout(timer)
+        backdropReadyRef.current = false
+      }
+    } else {
+      backdropReadyRef.current = false
     }
-  }, [location.pathname, onClose])
+  }, [isOpen])
+
+  // Close sidebar when route changes on mobile (but not on initial mount)
+  useEffect(() => {
+    if (onClose && prevPathnameRef.current !== location.pathname && isOpen) {
+      // Only close if pathname actually changed and sidebar is open
+      prevPathnameRef.current = location.pathname
+      onClose()
+    } else if (prevPathnameRef.current !== location.pathname) {
+      prevPathnameRef.current = location.pathname
+    }
+  }, [location.pathname, onClose, isOpen])
 
   return (
     <>
@@ -31,11 +53,21 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       {isOpen && onClose && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={onClose}
-          onTouchStart={onClose}
+          onClick={(e) => {
+            if (!backdropReadyRef.current) return
+            e.preventDefault()
+            e.stopPropagation()
+            onClose()
+          }}
+          onTouchEnd={(e) => {
+            if (!backdropReadyRef.current) return
+            e.preventDefault()
+            e.stopPropagation()
+            onClose()
+          }}
           aria-hidden="true"
           style={{
-            touchAction: 'none',
+            touchAction: 'pan-y',
           }}
         />
       )}
@@ -75,7 +107,12 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={onClose}
+                onClick={() => {
+                  // Close sidebar only on mobile when clicking a link
+                  if (onClose && window.innerWidth < 768) {
+                    onClose()
+                  }
+                }}
                 className={cn(
                   'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
                   isActive

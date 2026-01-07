@@ -47,16 +47,21 @@ export default function Header({ onMenuClick }: HeaderProps) {
         {onMenuClick && (
           <button
             onClick={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               onMenuClick()
             }}
-            onTouchStart={(e) => {
+            onTouchEnd={(e) => {
+              e.preventDefault()
               e.stopPropagation()
               onMenuClick()
             }}
-            className="md:hidden p-2 hover:bg-accent active:bg-accent/80 rounded-lg relative z-30"
+            className="md:hidden p-2 hover:bg-accent active:bg-accent/80 rounded-lg relative z-50"
             aria-label="Открыть меню"
             type="button"
+            style={{
+              touchAction: 'manipulation',
+            }}
           >
             <Menu className="h-5 w-5" />
           </button>

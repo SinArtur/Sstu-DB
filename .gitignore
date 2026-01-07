@@ -71,7 +71,8 @@ htmlcov/
 *.bak
 *.tmp
 
-# Schedule sync client logs
+# Schedule sync client logs and config
 logs/
 schedule_sync_client.log
+schedule_sync_client.env
 

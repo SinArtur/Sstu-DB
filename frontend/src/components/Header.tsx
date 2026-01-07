@@ -41,14 +41,22 @@ export default function Header({ onMenuClick }: HeaderProps) {
   }, [showUserMenu])
 
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-4 md:px-6">
+    <header className="h-16 border-b bg-card flex items-center justify-between px-4 md:px-6 relative z-20 md:z-auto">
       <div className="flex items-center gap-4">
         {/* Mobile menu button */}
         {onMenuClick && (
           <button
-            onClick={onMenuClick}
-            className="md:hidden p-2 hover:bg-accent rounded-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMenuClick()
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation()
+              onMenuClick()
+            }}
+            className="md:hidden p-2 hover:bg-accent active:bg-accent/80 rounded-lg relative z-30"
             aria-label="Открыть меню"
+            type="button"
           >
             <Menu className="h-5 w-5" />
           </button>

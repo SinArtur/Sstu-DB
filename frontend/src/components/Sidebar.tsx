@@ -28,19 +28,30 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   return (
     <>
       {/* Backdrop for mobile */}
-      {isOpen && (
+      {isOpen && onClose && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={onClose}
+          onTouchStart={onClose}
+          aria-hidden="true"
+          style={{
+            touchAction: 'none',
+          }}
         />
       )}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed md:static inset-y-0 left-0 z-50 w-64 border-r bg-card flex flex-col transform transition-transform duration-300 ease-in-out',
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          'fixed md:static inset-y-0 left-0 z-50 w-64 border-r bg-card flex flex-col transition-transform duration-300 ease-in-out md:transition-none md:translate-x-0',
+          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+          !isOpen && onClose ? 'pointer-events-none md:pointer-events-auto' : ''
         )}
+        role="navigation"
+        aria-label="Основная навигация"
+        style={{
+          willChange: 'transform',
+        }}
       >
         <div className="p-4 md:p-6 border-b flex items-center justify-between">
           <h1 className="text-xl font-bold">База знаний</h1>

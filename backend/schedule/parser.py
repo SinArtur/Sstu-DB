@@ -44,6 +44,9 @@ class SSTUScheduleParser:
         self.MAIN_PAGE = f"{self.BASE_URL}/"
         self.GROUP_PAGE = f"{self.BASE_URL}/rasp/group/"
         self.TEACHER_PAGE = f"{self.BASE_URL}/rasp/teacher/"
+        
+        # Setup session
+        self._setup_session()
     
     # Время пар
     LESSON_TIMES = {

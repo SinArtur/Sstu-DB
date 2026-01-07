@@ -12,6 +12,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# But keep frontend/src/lib (it contains source code)
+!frontend/src/lib/
 parts/
 sdist/
 var/
@@ -68,4 +70,8 @@ htmlcov/
 # Misc
 *.bak
 *.tmp
+
+# Schedule sync client logs
+logs/
+schedule_sync_client.log
 

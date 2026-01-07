@@ -26,7 +26,7 @@ if csrf_origins_str:
 else:
     csrf_origins = []
 
-# Always add HTTPS origins for polikek.ru
+# Always add HTTPS origins for polikek.ru (these are always added regardless of env var)
 csrf_origins.extend([
     'https://polikek.ru',
     'https://www.polikek.ru',
@@ -35,7 +35,8 @@ csrf_origins.extend([
     'http://localhost',
     'http://127.0.0.1',
 ])
-CSRF_TRUSTED_ORIGINS = list(set(csrf_origins))  # Remove duplicates
+# Remove duplicates and empty strings
+CSRF_TRUSTED_ORIGINS = [origin for origin in list(set(csrf_origins)) if origin]
 
 # CSRF cookie settings for HTTPS
 CSRF_COOKIE_SECURE = True  # Send CSRF cookie only over HTTPS

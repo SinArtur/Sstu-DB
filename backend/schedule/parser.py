@@ -32,14 +32,15 @@ class SSTUScheduleParser:
         self.proxy = proxy
         self.cloudflare_worker_url = cloudflare_worker_url
         
-        # If Cloudflare Worker URL is provided, use it as base URL
+        # If Cloudflare Worker URL is provided, store it for routing requests
         if self.cloudflare_worker_url:
-            # Remove trailing slash if present
             worker_url = self.cloudflare_worker_url.rstrip('/')
-            self.BASE_URL = f"{worker_url}?url=https://rasp.sstu.ru"
+            self._worker_base = worker_url
         else:
-            self.BASE_URL = "https://rasp.sstu.ru"
+            self._worker_base = None
         
+        # Keep original BASE_URL for constructing target URLs
+        self.BASE_URL = "https://rasp.sstu.ru"
         self.MAIN_PAGE = f"{self.BASE_URL}/"
         self.GROUP_PAGE = f"{self.BASE_URL}/rasp/group/"
         self.TEACHER_PAGE = f"{self.BASE_URL}/rasp/teacher/"
@@ -79,20 +80,8 @@ class SSTUScheduleParser:
         'воскресенье': 7,
     }
     
-    def __init__(self, timeout: int = 30, proxy: Optional[str] = None, cloudflare_worker_url: Optional[str] = None):
-        """Initialize parser with timeout, optional proxy, and optional Cloudflare Worker URL."""
-        self.timeout = timeout
-        self.proxy = proxy
-        self.cloudflare_worker_url = cloudflare_worker_url
-        
-        # If Cloudflare Worker URL is provided, use it to modify BASE_URL
-        if self.cloudflare_worker_url:
-            worker_url = self.cloudflare_worker_url.rstrip('/')
-            # Worker will proxy requests, so we keep original URLs but will route through worker
-            self._worker_base = worker_url
-        else:
-            self._worker_base = None
-        
+    def _setup_session(self):
+        """Setup requests session with proxy if needed."""
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

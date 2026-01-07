@@ -81,7 +81,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def login_and_get_tokens():
+def login_and_get_tokens(retries: int = 3):
     """Автоматически логинится и получает токены через API."""
     global _current_token, _current_refresh_token
     
@@ -89,35 +89,66 @@ def login_and_get_tokens():
         logger.error("ADMIN_EMAIL и ADMIN_PASSWORD не установлены в .env файле!")
         return False
     
-    try:
-        url = f"{API_BASE_URL}/auth/login/"
-        response = requests.post(
-            url,
-            json={'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD},
-            headers={'Content-Type': 'application/json'},
-            timeout=30
-        )
+    url = f"{API_BASE_URL}/auth/login/"
+    
+    for attempt in range(retries):
+        try:
+            logger.info(f"Попытка входа (попытка {attempt + 1}/{retries})...")
+            response = requests.post(
+                url,
+                json={'email': ADMIN_EMAIL, 'password': ADMIN_PASSWORD},
+                headers={'Content-Type': 'application/json'},
+                timeout=60  # Увеличил таймаут до 60 секунд
+            )
         
-        if response.status_code == 200:
-            data = response.json()
-            _current_token = data.get('access')
-            _current_refresh_token = data.get('refresh')
-            
-            if _current_token and _current_refresh_token:
-                logger.info("Успешно получены токены через автоматический вход")
-                # Опционально: сохранить токены в файл (можно закомментировать для безопасности)
-                # save_tokens_to_env_file(_current_token, _current_refresh_token)
-                return True
+            if response.status_code == 200:
+                data = response.json()
+                _current_token = data.get('access')
+                _current_refresh_token = data.get('refresh')
+                
+                if _current_token and _current_refresh_token:
+                    logger.info("Успешно получены токены через автоматический вход")
+                    return True
+                else:
+                    logger.error("Не удалось получить токены из ответа API")
+                    return False
             else:
-                logger.error("Не удалось получить токены из ответа API")
+                error_msg = response.json().get('non_field_errors', ['Неизвестная ошибка']) if response.content else 'Нет ответа'
+                logger.error(f"Ошибка входа (код {response.status_code}): {error_msg}")
+                if attempt < retries - 1:
+                    logger.info(f"Повторная попытка через 5 секунд...")
+                    time.sleep(5)
+                    continue
                 return False
-        else:
-            error_msg = response.json().get('non_field_errors', ['Неизвестная ошибка'])
-            logger.error(f"Ошибка входа (код {response.status_code}): {error_msg}")
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"Таймаут подключения к серверу (попытка {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                wait_time = (attempt + 1) * 10  # Увеличиваем время ожидания с каждой попыткой
+                logger.info(f"Повторная попытка через {wait_time} секунд...")
+                time.sleep(wait_time)
+                continue
+            logger.error(f"Не удалось подключиться к серверу после {retries} попыток. Проверьте доступность {API_BASE_URL}")
+            logger.error("Возможно, сервер перезагружается или недоступен. Попробуйте позже.")
             return False
-    except Exception as e:
-        logger.error(f"Ошибка при автоматическом входе: {str(e)}")
-        return False
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"Ошибка подключения к серверу (попытка {attempt + 1}/{retries}): {e}")
+            if attempt < retries - 1:
+                wait_time = (attempt + 1) * 10
+                logger.info(f"Повторная попытка через {wait_time} секунд...")
+                time.sleep(wait_time)
+                continue
+            logger.error(f"Не удалось подключиться к серверу после {retries} попыток. Проверьте доступность {API_BASE_URL}")
+            logger.error("Возможно, сервер перезагружается или недоступен. Попробуйте позже.")
+            return False
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при автоматическом входе: {str(e)}")
+            if attempt < retries - 1:
+                logger.info(f"Повторная попытка через 5 секунд...")
+                time.sleep(5)
+                continue
+            return False
+    
+    return False
 
 
 def refresh_access_token():

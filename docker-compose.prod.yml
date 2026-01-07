@@ -49,6 +49,8 @@ services:
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
       - REDIS_URL=redis://redis:6379/0
       - FRONTEND_URL=${FRONTEND_URL}
+      - SSTU_SCHEDULE_PROXY=${SSTU_SCHEDULE_PROXY:-}
+      - SSTU_SCHEDULE_TIMEOUT=${SSTU_SCHEDULE_TIMEOUT:-60}
     depends_on:
       db:
         condition: service_healthy

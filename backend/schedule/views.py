@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
+from accounts.permissions import IsAdmin
 from .models import Institute, Group, Teacher, Subject, Lesson, ScheduleUpdate
 from .serializers import (
     InstituteSerializer, GroupListSerializer, GroupDetailSerializer,
@@ -11,6 +12,7 @@ from .serializers import (
     LessonDetailSerializer, ScheduleUpdateSerializer
 )
 from .tasks import sync_all_schedules, sync_single_group
+from .services import ScheduleSyncService
 
 
 class InstituteViewSet(viewsets.ReadOnlyModelViewSet):
@@ -230,22 +232,58 @@ class ScheduleUpdateViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['started_at', 'finished_at']
     ordering = ['-started_at']
     
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
     def trigger_sync(self, request):
-        """Trigger full schedule synchronization."""
-        # Check if user has permission (e.g., is_staff or is_moderator)
-        if not request.user.is_staff and not request.user.is_moderator:
+        """Trigger full schedule synchronization (admin only)."""
+        # Check if sync is already in progress
+        in_progress = ScheduleUpdate.objects.filter(status=ScheduleUpdate.Status.IN_PROGRESS).exists()
+        if in_progress:
             return Response(
-                {'error': 'Permission denied'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Schedule synchronization is already in progress'},
+                status=status.HTTP_400_BAD_REQUEST
             )
         
         # Trigger async task
-        sync_all_schedules.delay()
+        task = sync_all_schedules.delay()
         
         return Response({
-            'message': 'Schedule synchronization started'
+            'message': 'Schedule synchronization started',
+            'task_id': task.id
         })
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
+    def trigger_sync_sync(self, request):
+        """Trigger full schedule synchronization synchronously (admin only)."""
+        # Check if sync is already in progress
+        in_progress = ScheduleUpdate.objects.filter(status=ScheduleUpdate.Status.IN_PROGRESS).exists()
+        if in_progress:
+            return Response(
+                {'error': 'Schedule synchronization is already in progress'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Run sync synchronously
+        try:
+            service = ScheduleSyncService()
+            update = service.sync_all()
+            
+            if update.status == ScheduleUpdate.Status.SUCCESS:
+                return Response({
+                    'message': 'Schedule synchronization completed successfully',
+                    'groups_updated': update.groups_updated,
+                    'lessons_added': update.lessons_added,
+                    'lessons_removed': update.lessons_removed,
+                    'update_id': update.id
+                })
+            else:
+                return Response({
+                    'error': update.error_message or 'Schedule synchronization failed',
+                    'update_id': update.id
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['get'])
     def latest(self, request):

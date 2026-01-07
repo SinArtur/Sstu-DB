@@ -9,6 +9,13 @@ import requests
 from bs4 import BeautifulSoup
 from django.utils import timezone
 
+# Try to import SOCKS support
+try:
+    import socks
+    SOCKS_AVAILABLE = True
+except ImportError:
+    SOCKS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,17 +73,18 @@ class SSTUScheduleParser:
         if self.proxy:
             # Support both HTTP and SOCKS5 proxies
             if self.proxy.startswith('socks5://') or self.proxy.startswith('socks4://'):
-                # SOCKS proxy - requires requests[socks] package
+                # SOCKS proxy - requires PySocks package (installed via requests[socks])
                 try:
-                    # Use requests built-in SOCKS support
+                    # Import socks to verify it's available
+                    import socks
+                    # Use requests built-in SOCKS support - requests automatically detects SOCKS proxy
                     self.session.proxies = {
                         'http': self.proxy,
                         'https': self.proxy
                     }
                     logger.info(f"Using SOCKS proxy: {self.proxy}")
-                except Exception as e:
-                    logger.error(f"Error setting SOCKS proxy: {e}")
-                    logger.error("SOCKS proxy requires 'requests[socks]' package. Install with: pip install requests[socks]")
+                except ImportError:
+                    logger.error("SOCKS proxy requires 'PySocks' package. Install with: pip install PySocks")
                     raise
             else:
                 # HTTP proxy

@@ -20,13 +20,20 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # CSRF settings
-csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
+csrf_origins_str = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if csrf_origins_str:
+    csrf_origins = [origin.strip() for origin in csrf_origins_str.split(',') if origin.strip()]
+else:
+    csrf_origins = []
+
 # Always add HTTPS origins for polikek.ru
 csrf_origins.extend([
     'https://polikek.ru',
     'https://www.polikek.ru',
     'http://polikek.ru',
     'http://www.polikek.ru',
+    'http://localhost',
+    'http://127.0.0.1',
 ])
 CSRF_TRUSTED_ORIGINS = list(set(csrf_origins))  # Remove duplicates
 

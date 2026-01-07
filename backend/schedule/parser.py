@@ -12,6 +12,8 @@ from django.utils import timezone
 # Try to import SOCKS support
 try:
     import socks
+    import socket
+    from urllib3.contrib.socks import SOCKSProxyManager
     SOCKS_AVAILABLE = True
 except ImportError:
     SOCKS_AVAILABLE = False
@@ -73,18 +75,26 @@ class SSTUScheduleParser:
         if self.proxy:
             # Support both HTTP and SOCKS5 proxies
             if self.proxy.startswith('socks5://') or self.proxy.startswith('socks4://'):
-                # SOCKS proxy - requires PySocks package (installed via requests[socks])
-                try:
-                    # Import socks to verify it's available
-                    import socks
-                    # Use requests built-in SOCKS support - requests automatically detects SOCKS proxy
-                    self.session.proxies = {
-                        'http': self.proxy,
-                        'https': self.proxy
-                    }
-                    logger.info(f"Using SOCKS proxy: {self.proxy}")
-                except ImportError:
+                # SOCKS proxy - requires PySocks package
+                if not SOCKS_AVAILABLE:
                     logger.error("SOCKS proxy requires 'PySocks' package. Install with: pip install PySocks")
+                    raise ImportError("PySocks is required for SOCKS proxy support")
+                
+                # Use urllib3 with SOCKS support
+                try:
+                    from urllib3.contrib.socks import SOCKSProxyManager
+                    import urllib3
+                    # Create SOCKS proxy manager
+                    proxy_url = self.proxy
+                    self.session.proxies = {
+                        'http': proxy_url,
+                        'https': proxy_url
+                    }
+                    # Also configure urllib3 to use SOCKS
+                    urllib3.disable_warnings()
+                    logger.info(f"Using SOCKS proxy: {self.proxy}")
+                except Exception as e:
+                    logger.error(f"Error configuring SOCKS proxy: {e}")
                     raise
             else:
                 # HTTP proxy

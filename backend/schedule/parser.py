@@ -80,22 +80,13 @@ class SSTUScheduleParser:
                     logger.error("SOCKS proxy requires 'PySocks' package. Install with: pip install PySocks")
                     raise ImportError("PySocks is required for SOCKS proxy support")
                 
-                # Use urllib3 with SOCKS support
-                try:
-                    from urllib3.contrib.socks import SOCKSProxyManager
-                    import urllib3
-                    # Create SOCKS proxy manager
-                    proxy_url = self.proxy
-                    self.session.proxies = {
-                        'http': proxy_url,
-                        'https': proxy_url
-                    }
-                    # Also configure urllib3 to use SOCKS
-                    urllib3.disable_warnings()
-                    logger.info(f"Using SOCKS proxy: {self.proxy}")
-                except Exception as e:
-                    logger.error(f"Error configuring SOCKS proxy: {e}")
-                    raise
+                # requests automatically detects SOCKS proxy format when PySocks is installed
+                # Just set it in proxies dict
+                self.session.proxies = {
+                    'http': self.proxy,
+                    'https': self.proxy
+                }
+                logger.info(f"Using SOCKS proxy: {self.proxy}")
             else:
                 # HTTP proxy
                 self.session.proxies = {

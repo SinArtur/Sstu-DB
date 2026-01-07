@@ -207,7 +207,7 @@ CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:63
 # Format: http://user:pass@proxy.example.com:8080 or http://proxy.example.com:8080
 # For SOCKS5: socks5://proxy.example.com:1080
 SSTU_SCHEDULE_PROXY = os.getenv('SSTU_SCHEDULE_PROXY', None)
-SSTU_SCHEDULE_TIMEOUT = int(os.getenv('SSTU_SCHEDULE_TIMEOUT', '30'))  # Timeout in seconds
+SSTU_SCHEDULE_TIMEOUT = int(os.getenv('SSTU_SCHEDULE_TIMEOUT', '60'))  # Timeout in seconds (increased for Cloudflare Worker)
 
 # Cloudflare Worker URL for proxying requests (alternative to proxy)
 # Format: https://your-worker.your-subdomain.workers.dev

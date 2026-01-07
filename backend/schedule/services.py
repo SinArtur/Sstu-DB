@@ -21,7 +21,10 @@ class ScheduleSyncService:
         proxy = getattr(settings, 'SSTU_SCHEDULE_PROXY', None) or os.getenv('SSTU_SCHEDULE_PROXY')
         # Get Cloudflare Worker URL from settings if available
         cloudflare_worker_url = getattr(settings, 'SSTU_CLOUDFLARE_WORKER_URL', None) or os.getenv('SSTU_CLOUDFLARE_WORKER_URL')
-        timeout = getattr(settings, 'SSTU_SCHEDULE_TIMEOUT', 30)
+        timeout = getattr(settings, 'SSTU_SCHEDULE_TIMEOUT', 60)  # Default 60 seconds
+        # If using Cloudflare Worker, increase timeout as it may be slower
+        if cloudflare_worker_url:
+            timeout = max(timeout, 90)  # At least 90 seconds for Worker
         self.parser = SSTUScheduleParser(timeout=timeout, proxy=proxy, cloudflare_worker_url=cloudflare_worker_url)
         self.stats = {
             'groups_updated': 0,

@@ -30,6 +30,12 @@ csrf_origins.extend([
 ])
 CSRF_TRUSTED_ORIGINS = list(set(csrf_origins))  # Remove duplicates
 
+# CSRF cookie settings for HTTPS
+CSRF_COOKIE_SECURE = True  # Send CSRF cookie only over HTTPS
+CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
+CSRF_USE_SESSIONS = False  # Use cookies for CSRF token (default)
+CSRF_COOKIE_SAMESITE = 'Lax'  # CSRF cookie SameSite attribute
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',

@@ -20,13 +20,15 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # CSRF settings
-CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
-# Add HTTPS origins if in production
-if not DEBUG:
-    CSRF_TRUSTED_ORIGINS.extend([
-        'https://polikek.ru',
-        'https://www.polikek.ru',
-    ])
+csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost,http://127.0.0.1').split(',')
+# Always add HTTPS origins for polikek.ru
+csrf_origins.extend([
+    'https://polikek.ru',
+    'https://www.polikek.ru',
+    'http://polikek.ru',
+    'http://www.polikek.ru',
+])
+CSRF_TRUSTED_ORIGINS = list(set(csrf_origins))  # Remove duplicates
 
 # Application definition
 INSTALLED_APPS = [

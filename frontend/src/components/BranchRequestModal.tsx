@@ -21,16 +21,16 @@ interface BranchRequestModalProps {
 
 const TYPE_LABELS: Record<string, string> = {
   institute: 'Институт',
-  department: 'Кафедра',
   direction: 'Направление',
+  subject: 'Предмет',
   course: 'Курс',
   teacher: 'Преподаватель',
 }
 
 const NEXT_TYPE_MAP: Record<string, string> = {
-  institute: 'department',
-  department: 'direction',
-  direction: 'course',
+  institute: 'direction',
+  direction: 'subject',
+  subject: 'course',
   course: 'teacher',
 }
 

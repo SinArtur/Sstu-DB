@@ -53,21 +53,9 @@ class Command(BaseCommand):
         if created:
             self.stdout.write(self.style.SUCCESS('Created institute branch'))
 
-        department, created = Branch.objects.get_or_create(
-            name='Кафедра программной инженерии',
-            parent=institute,
-            type=Branch.BranchType.DEPARTMENT,
-            defaults={
-                'creator': admin,
-                'status': Branch.Status.APPROVED,
-            }
-        )
-        if created:
-            self.stdout.write(self.style.SUCCESS('Created department branch'))
-
         direction, created = Branch.objects.get_or_create(
             name='Программная инженерия',
-            parent=department,
+            parent=institute,
             type=Branch.BranchType.DIRECTION,
             defaults={
                 'creator': admin,
@@ -76,6 +64,18 @@ class Command(BaseCommand):
         )
         if created:
             self.stdout.write(self.style.SUCCESS('Created direction branch'))
+
+        subject, created = Branch.objects.get_or_create(
+            name='Базы данных',
+            parent=direction,
+            type=Branch.BranchType.SUBJECT,
+            defaults={
+                'creator': admin,
+                'status': Branch.Status.APPROVED,
+            }
+        )
+        if created:
+            self.stdout.write(self.style.SUCCESS('Created subject branch'))
 
         # Create invite tokens for admin
         InviteToken.create_for_user(admin, count=5)

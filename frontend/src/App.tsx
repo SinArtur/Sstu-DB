@@ -11,6 +11,7 @@ import MaterialsPage from './pages/MaterialsPage'
 import ProfilePage from './pages/ProfilePage'
 import ModerationPage from './pages/ModerationPage'
 import AdminPage from './pages/AdminPage'
+import SchedulePage from './pages/SchedulePage'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 
@@ -31,6 +32,7 @@ function App() {
           <Route path="/branches" element={<BranchesPage />} />
           <Route path="/branches/:branchId" element={<MaterialsPage />} />
           <Route path="/materials/:materialId" element={<MaterialsPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/moderation" element={<ModerationPage />} />
           <Route path="/admin" element={<AdminPage />} />

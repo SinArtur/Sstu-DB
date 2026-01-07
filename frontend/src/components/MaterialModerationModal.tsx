@@ -123,9 +123,7 @@ export default function MaterialModerationModal({
               {material.description && (
                 <div>
                   <span className="font-medium">Описание:</span>
-                  <div className="mt-2 bg-muted/50 rounded-lg p-3 border-l-4 border-primary">
-                    <p className="text-base font-medium text-foreground leading-relaxed">{material.description}</p>
-                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{material.description}</p>
                 </div>
               )}
             </div>

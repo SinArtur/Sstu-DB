@@ -75,7 +75,7 @@ export default function ModerationPage() {
               {pending.materials.map((material: any) => (
                 <div key={material.id} className="bg-card border rounded-lg p-4">
                   <p className="font-medium">{material.branch_path}</p>
-                  <p className="text-base text-foreground mt-2 leading-relaxed">
+                  <p className="text-sm text-muted-foreground">
                     {material.description || 'Без описания'}
                   </p>
                   <p className="text-sm text-muted-foreground">

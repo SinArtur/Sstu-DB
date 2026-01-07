@@ -1,11 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Home, BookOpen, Settings, X } from 'lucide-react'
+import { Home, BookOpen, Settings, Calendar, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useEffect } from 'react'
 
 const navItems = [
   { path: '/', label: 'Главная', icon: Home },
   { path: '/branches', label: 'База знаний', icon: BookOpen },
+  { path: '/schedule', label: 'Расписание', icon: Calendar },
   { path: '/profile', label: 'Профиль', icon: Settings },
 ]
 

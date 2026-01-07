@@ -3,32 +3,6 @@
 from django.db import migrations, models
 
 
-def migrate_branch_types_forward(apps, schema_editor):
-    """Migrate branch types: direction (as department) -> department, subject -> direction."""
-    Branch = apps.get_model('branches', 'Branch')
-    
-    # Convert direction branches that are children of institute to department
-    Branch.objects.filter(
-        type='direction',
-        parent__type='institute'
-    ).update(type='department')
-    
-    # Convert subject branches to direction
-    Branch.objects.filter(type='subject').update(type='direction')
-
-
-def migrate_branch_types_backward(apps, schema_editor):
-    """Reverse migration: department -> direction, direction (former subject) -> subject."""
-    Branch = apps.get_model('branches', 'Branch')
-    
-    # Convert department branches back to direction
-    Branch.objects.filter(type='department').update(type='direction')
-    
-    # Note: We can't perfectly reverse direction->subject conversion
-    # as we don't know which directions were subjects
-    # This is a limitation of the migration
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -36,7 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(migrate_branch_types_forward, migrate_branch_types_backward),
         migrations.AlterField(
             model_name='branch',
             name='type',

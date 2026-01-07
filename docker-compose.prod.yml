@@ -40,14 +40,10 @@ services:
       - DEBUG=${DEBUG:-False}
       - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      - DB_NAME=${DB_NAME:-sstudb}
-      - DB_USER=${DB_USER:-sstudb_user}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=db
-      - DB_PORT=5432
+      - DATABASE_URL=postgresql://${DB_USER:-sstudb_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-sstudb}
       - EMAIL_HOST=${EMAIL_HOST}
-      - EMAIL_PORT=${EMAIL_PORT:-587}
-      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_PORT=${EMAIL_PORT:-465}
+      - EMAIL_USE_SSL=${EMAIL_USE_SSL:-True}
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
       - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL}
@@ -64,11 +60,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    # Uncomment and adjust if you have memory issues during build:
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 1G
     volumes:
       - static_volume:/usr/share/nginx/html/static
     depends_on:

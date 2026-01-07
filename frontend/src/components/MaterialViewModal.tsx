@@ -154,9 +154,7 @@ export default function MaterialViewModal({ material, onClose }: MaterialViewMod
                   {materialData?.branch_path || materialData?.branch_name}
                 </h3>
                 {materialData?.description && (
-                  <div className="bg-muted/50 rounded-lg p-4 mb-4 border-l-4 border-primary">
-                    <p className="text-base font-medium text-foreground leading-relaxed">{materialData.description}</p>
-                  </div>
+                  <p className="text-muted-foreground mb-4">{materialData.description}</p>
                 )}
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">

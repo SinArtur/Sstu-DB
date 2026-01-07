@@ -7,17 +7,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(process.cwd(), 'src'),
-    },
-  },
-  build: {
-    // Optimize for lower memory usage
-    minify: 'esbuild', // Faster and uses less memory than terser
-    chunkSizeWarningLimit: 1000,
-    rollupOptions: {
-      output: {
-        manualChunks: undefined, // Disable code splitting to reduce memory usage
-      },
+      '@': path.resolve(__dirname, './src'),
     },
   },
   server: {

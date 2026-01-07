@@ -6,7 +6,6 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 60000, // 60 seconds timeout (increased for registration with email sending)
 })
 
 // Request interceptor
@@ -64,4 +63,43 @@ api.interceptors.response.use(
 )
 
 export default api
+
+// Schedule API
+export const scheduleApi = {
+  // Get all institutes
+  getInstitutes: () => api.get('/schedule/institutes/'),
+  
+  // Get all groups
+  getGroups: (params?: any) => api.get('/schedule/groups/', { params }),
+  
+  // Get group details
+  getGroup: (id: number) => api.get(`/schedule/groups/${id}/`),
+  
+  // Get user's group
+  getMyGroup: () => api.get('/schedule/groups/my_group/'),
+  
+  // Get all teachers
+  getTeachers: (params?: any) => api.get('/schedule/teachers/', { params }),
+  
+  // Get all subjects
+  getSubjects: (params?: any) => api.get('/schedule/subjects/', { params }),
+  
+  // Get lessons
+  getLessons: (params?: any) => api.get('/schedule/lessons/', { params }),
+  
+  // Get user's schedule
+  getMySchedule: (params?: any) => api.get('/schedule/lessons/my_schedule/', { params }),
+  
+  // Get weekly schedule
+  getWeeklySchedule: (groupId: number) => api.get('/schedule/lessons/weekly/', { params: { group: groupId } }),
+  
+  // Get schedule updates
+  getUpdates: () => api.get('/schedule/updates/'),
+  
+  // Get latest update
+  getLatestUpdate: () => api.get('/schedule/updates/latest/'),
+  
+  // Trigger sync (moderators/admins only)
+  triggerSync: () => api.post('/schedule/updates/trigger_sync/'),
+}
 

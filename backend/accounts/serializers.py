@@ -12,13 +12,14 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
     
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    group_name = serializers.CharField(source='group.name', read_only=True, allow_null=True)
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name',
             'role', 'role_display', 'is_email_verified', 'can_access_admin_panel',
-            'created_at', 'updated_at'
+            'group', 'group_name', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_email_verified']
 
@@ -78,15 +79,8 @@ class RegisterSerializer(serializers.Serializer):
         user.is_email_verified = False
         user.save()
         
-        # Send verification email asynchronously to avoid blocking the response
-        import threading
-        request = self.context.get('request')
-        thread = threading.Thread(
-            target=self._send_verification_email,
-            args=(user, verification_token, request),
-            daemon=True
-        )
-        thread.start()
+        # Send verification email
+        self._send_verification_email(user, verification_token)
         
         # Create 3 invite tokens for new student
         if user.is_student:
@@ -94,9 +88,10 @@ class RegisterSerializer(serializers.Serializer):
         
         return user
     
-    def _send_verification_email(self, user, token, request):
+    def _send_verification_email(self, user, token):
         """Send email verification email."""
         from .utils import send_verification_email
+        request = self.context.get('request')
         send_verification_email(user, token, request)
 
 

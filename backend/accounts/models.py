@@ -65,6 +65,14 @@ class User(AbstractUser):
         default=False,
         verbose_name='Доступ к админ-панели'
     )
+    group = models.ForeignKey(
+        'schedule.Group',
+        on_delete=models.SET_NULL,
+        related_name='students',
+        null=True,
+        blank=True,
+        verbose_name='Группа'
+    )
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

@@ -208,12 +208,6 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Prevent double submission
-    if (loading) {
-      return
-    }
-    
     setLoading(true)
 
     // Final validation
@@ -232,53 +226,17 @@ export default function RegisterPage() {
 
     try {
       const response = await api.post('/auth/register/', formData)
+      const { access, refresh, user } = response.data
       
-      // Stop loading immediately after successful response
-      setLoading(false)
-      
-      // Show success notification
-      toast.success('Профиль успешно зарегистрирован! Проверьте email для подтверждения.')
+      setAuth(user, access, refresh)
+      toast.success('Регистрация успешна! Проверьте email для подтверждения.')
       toast('⚠️ Не забудьте проверить папку "Спам", если письмо не пришло', {
         icon: '📧',
         duration: 6000,
       })
-      
-      // Optionally set auth if response contains tokens
-      if (response.data?.access && response.data?.refresh && response.data?.user) {
-        try {
-          setAuth(response.data.user, response.data.access, response.data.refresh)
-        } catch (authError) {
-          // Ignore auth errors, user can login manually
-          console.warn('Could not set auth automatically:', authError)
-        }
-      }
-      
-      // Clear form
-      setFormData({
-        email: '',
-        username: '',
-        password: '',
-        password_confirm: '',
-        invite_token: '',
-        first_name: '',
-        last_name: '',
-      })
-      setErrors({})
-      
+      navigate('/')
     } catch (error: any) {
-      console.error('Registration error:', error)
-      
-      // Handle timeout or network errors
-      if (error.code === 'ECONNABORTED' || error.message === 'Network Error' || error.message?.includes('timeout')) {
-        // Check if user might have been created (status 201 but response not received)
-        if (error.response?.status === 201 || !error.response) {
-          toast.error('Регистрация может быть завершена, но ответ не получен. Проверьте email или попробуйте войти.')
-        } else {
-          toast.error('Превышено время ожидания. Проверьте подключение к интернету.')
-        }
-        setLoading(false)
-        return
-      }
+      console.error('Registration error:', error.response?.data)
       
       // Extract error messages from validation errors
       const errorData = error.response?.data || {}
@@ -307,10 +265,9 @@ export default function RegisterPage() {
       
       setErrors(newErrors)
       
-      const errorMessage = Object.values(newErrors)[0] || errorData.error || error.message || 'Ошибка регистрации'
+      const errorMessage = Object.values(newErrors)[0] || errorData.error || 'Ошибка регистрации'
       toast.error(errorMessage)
     } finally {
-      // Ensure loading is always set to false, even if something unexpected happens
       setLoading(false)
     }
   }

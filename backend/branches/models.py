@@ -9,13 +9,12 @@ User = get_user_model()
 
 
 class Branch(models.Model):
-    """Branch in the tree structure (Institute -> Department -> Direction -> Course -> Teacher)."""
+    """Branch in the tree structure (Institute -> Direction -> Subject -> Teacher)."""
     
     class BranchType(models.TextChoices):
         INSTITUTE = 'institute', 'Институт'
-        DEPARTMENT = 'department', 'Кафедра'
         DIRECTION = 'direction', 'Направление'
-        COURSE = 'course', 'Курс'
+        SUBJECT = 'subject', 'Предмет'
         TEACHER = 'teacher', 'Преподаватель'
     
     class Status(models.TextChoices):
@@ -123,20 +122,24 @@ class Branch(models.Model):
     
     def is_leaf(self):
         """Check if branch is a leaf (teacher level)."""
-        return self.type == self.BranchType.TEACHER or self.type == self.BranchType.COURSE
+        return self.type == self.BranchType.TEACHER
     
     def can_have_children(self):
         """Check if branch can have children based on type."""
-        # Only teacher level cannot have children
-        return self.type != self.BranchType.TEACHER
+        type_order = {
+            self.BranchType.INSTITUTE: 1,
+            self.BranchType.DIRECTION: 2,
+            self.BranchType.SUBJECT: 3,
+            self.BranchType.TEACHER: 4,
+        }
+        return type_order.get(self.type, 0) < 4
     
     def get_next_type(self):
         """Get next type in hierarchy."""
         type_hierarchy = {
-            self.BranchType.INSTITUTE: self.BranchType.DEPARTMENT,
-            self.BranchType.DEPARTMENT: self.BranchType.DIRECTION,
-            self.BranchType.DIRECTION: self.BranchType.COURSE,
-            self.BranchType.COURSE: self.BranchType.TEACHER,
+            self.BranchType.INSTITUTE: self.BranchType.DIRECTION,
+            self.BranchType.DIRECTION: self.BranchType.SUBJECT,
+            self.BranchType.SUBJECT: self.BranchType.TEACHER,
         }
         return type_hierarchy.get(self.type)
     
@@ -235,26 +238,9 @@ class BranchRequest(models.Model):
         """Approve request and create branch."""
         from django.utils import timezone
         
-        # Validate parent can have children
-        if not self.parent.can_have_children():
-            raise ValueError("Родительская ветка не может иметь дочерние элементы")
-        
-        # Get next type in hierarchy
-        next_type = self.parent.get_next_type()
-        if not next_type:
-            raise ValueError("Невозможно определить тип новой ветки для данного родителя")
-        
-        # Check if branch with same name already exists
-        if Branch.objects.filter(
-            parent=self.parent,
-            name=self.name,
-            status=Branch.Status.APPROVED
-        ).exists():
-            raise ValueError("Ветка с таким названием уже существует")
-        
         # Create branch
         branch = Branch.objects.create(
-            type=next_type,
+            type=self.parent.get_next_type(),
             name=self.name,
             parent=self.parent,
             creator=self.requester,

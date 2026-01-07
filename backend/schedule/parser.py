@@ -116,18 +116,31 @@ class SSTUScheduleParser:
         """Fetch and parse page with retry logic."""
         # If Cloudflare Worker URL is provided, route through it
         if self._worker_base:
-            # Construct worker URL with target URL as parameter
-            worker_url = f"{self._worker_base}?url={url}"
+            # Construct worker URL with target URL as parameter (URL encode the target)
+            import urllib.parse
+            encoded_url = urllib.parse.quote(url, safe='')
+            worker_url = f"{self._worker_base}?url={encoded_url}"
             fetch_url = worker_url
         else:
             fetch_url = url
         
         for attempt in range(retries):
             try:
-                response = self.session.get(fetch_url, timeout=self.timeout)
+                # Use stream=True for large responses and increase timeout
+                response = self.session.get(fetch_url, timeout=self.timeout, stream=True)
                 response.raise_for_status()
-                response.encoding = 'utf-8'
-                return BeautifulSoup(response.text, 'html.parser')
+                
+                # Read response in chunks to avoid timeout on large responses
+                content = b''
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        content += chunk
+                
+                # Decode content
+                response.encoding = response.apparent_encoding or 'utf-8'
+                text = content.decode(response.encoding, errors='ignore')
+                
+                return BeautifulSoup(text, 'html.parser')
             except requests.Timeout as e:
                 logger.warning(f"Timeout fetching {fetch_url} (attempt {attempt + 1}/{retries}): {e}")
                 if attempt < retries - 1:

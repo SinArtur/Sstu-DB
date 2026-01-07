@@ -37,14 +37,31 @@ async function handleRequest(request) {
   })
   
   try {
-    // Используем fetch с таймаутом через AbortController
+    // Используем fetch с увеличенным таймаутом
+    // Cloudflare Workers имеют таймаут до 30 секунд для free плана
+    // Используем AbortController для контроля таймаута
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 25000) // 25 секунд таймаут
+    const timeoutId = setTimeout(() => controller.abort(), 28000) // 28 секунд таймаут (чуть меньше лимита)
     
-    const response = await fetch(modifiedRequest, {
+    // Добавляем дополнительные заголовки для обхода блокировок
+    const fetchOptions = {
       signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'no-cache',
+        'Referer': 'https://rasp.sstu.ru/',
+      },
       // Cloudflare Workers автоматически проксируют через их сеть
-    })
+      // Используем redirect: 'follow' для следования редиректам
+      redirect: 'follow',
+    }
+    
+    const response = await fetch(modifiedRequest, fetchOptions)
     
     clearTimeout(timeoutId)
     
@@ -64,9 +81,26 @@ async function handleRequest(request) {
     return modifiedResponse
   } catch (error) {
     if (error.name === 'AbortError') {
-      return new Response('Request timeout', { status: 504 })
+      return new Response(JSON.stringify({ error: 'Request timeout', message: 'The request to the target server timed out' }), { 
+        status: 504,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
-    return new Response(`Error: ${error.message}`, { status: 500 })
+    // Ошибка 522 от Cloudflare означает, что Worker не может подключиться к целевому серверу
+    if (error.message && error.message.includes('522')) {
+      return new Response(JSON.stringify({ 
+        error: 'Connection failed', 
+        message: 'Unable to connect to rasp.sstu.ru. The server may be blocking Cloudflare requests.',
+        code: 522
+      }), { 
+        status: 522,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    return new Response(JSON.stringify({ error: error.message, type: error.name }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
 

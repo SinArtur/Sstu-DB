@@ -268,87 +268,167 @@ def sync_schedule():
     total_groups = 0
     ok_groups = 0
     total_lessons = 0
+    failed_groups = []  # Список групп, которые не удалось отправить
 
     import_url = f"{API_BASE_URL}/schedule/updates/import_group/"
 
+    def _try_send_group(payload: dict, group_name: str, retries: int = 3) -> bool:
+        """Пытается отправить группу на сервер с повторными попытками."""
+        for attempt in range(retries):
+            try:
+                # Добавляем небольшую задержку между попытками (кроме первой)
+                if attempt > 0:
+                    delay = min(2 ** attempt, 10)  # Экспоненциальная задержка, максимум 10 секунд
+                    logger.info(f"Повторная попытка {attempt + 1}/{retries} для группы {group_name} через {delay} сек...")
+                    time.sleep(delay)
+                
+                resp = _post_json(import_url, payload, timeout=600)  # Увеличен таймаут до 600 секунд
+                
+                if resp.status_code == 200:
+                    try:
+                        data = resp.json()
+                        logger.info(
+                            f"Импорт OK: {group_name} "
+                            f"(создано: {data.get('lessons_created')}, обновлено: {data.get('lessons_updated')}, удалено: {data.get('lessons_removed')})"
+                        )
+                    except Exception:
+                        logger.info(f"Импорт OK: {group_name}")
+                    return True
+                elif resp.status_code == 405:
+                    logger.error(
+                        f"Импорт FAIL: {group_name} -> 405 (Метод POST не разрешен). "
+                        f"Возможно, на сервере старый код. Обновите сервер."
+                    )
+                    return False  # Не повторяем при 405
+                else:
+                    error_msg = resp.json().get('error', 'Неизвестная ошибка') if resp.content else 'Нет ответа от сервера'
+                    logger.warning(
+                        f"Импорт FAIL (попытка {attempt + 1}/{retries}): {group_name} -> {resp.status_code} {error_msg}"
+                    )
+                    if attempt < retries - 1:
+                        continue
+                    return False
+                    
+            except requests.exceptions.Timeout:
+                logger.warning(
+                    f"Таймаут (попытка {attempt + 1}/{retries}): {group_name}. "
+                    f"Проверьте доступность {API_BASE_URL}"
+                )
+                if attempt < retries - 1:
+                    continue
+                return False
+            except requests.exceptions.ConnectionError as e:
+                logger.warning(
+                    f"Ошибка подключения (попытка {attempt + 1}/{retries}): {group_name} -> {e}"
+                )
+                if attempt < retries - 1:
+                    continue
+                return False
+            except Exception as e:
+                logger.error(f"Неожиданная ошибка (попытка {attempt + 1}/{retries}): {group_name} -> {e}", exc_info=True)
+                if attempt < retries - 1:
+                    continue
+                return False
+        
+        return False
+
+    # Сначала парсим все группы и сохраняем их данные
+    logger.info("Этап 1: Парсинг всех групп...")
+    parsed_groups = []
+    
     for inst in institutes:
         inst_payload = {'name': inst.get('name'), 'sstu_id': inst.get('sstu_id')}
         for grp in inst.get('groups', []) or []:
             group_sstu_id = grp.get('sstu_id')
-            if not group_sstu_id:
+            group_name = grp.get('name')
+            
+            if not group_sstu_id or not group_name:
                 continue
+            
             total_groups += 1
-            group_payload = {
-                'name': grp.get('name'),
-                'sstu_id': group_sstu_id,
-                'education_form': grp.get('education_form'),
-                'degree_type': grp.get('degree_type'),
-                'course_number': grp.get('course_number'),
-            }
-
-            lessons = parser.parse_group_schedule(group_sstu_id) or []
-            total_lessons += len(lessons)
-
-            lessons_payload = []
-            for l in lessons:
-                # Parser returns python date/time objects; convert to JSON-safe strings
-                lessons_payload.append({
-                    'subject_name': l.get('subject_name'),
-                    'teacher_name': l.get('teacher_name'),
-                    'teacher_id': l.get('teacher_id'),
-                    'teacher_url': l.get('teacher_url'),
-                    'lesson_type': l.get('lesson_type'),
-                    'room': l.get('room'),
-                    'weekday': l.get('weekday'),
-                    'lesson_number': l.get('lesson_number'),
-                    'start_time': _ser_time(l.get('start_time')),
-                    'end_time': _ser_time(l.get('end_time')),
-                    'specific_date': _ser_date(l.get('specific_date')),
-                    'week_number': l.get('week_number'),
-                    'additional_info': l.get('additional_info', ''),
-                })
-
-            payload = {
-                'institute': inst_payload,
-                'group': group_payload,
-                'lessons': lessons_payload,
-            }
-
+            logger.info(f"Парсинг расписания для группы: {group_name} (ID: {group_sstu_id})...")
+            
             try:
-                resp = _post_json(import_url, payload, timeout=60)  # Уменьшил таймаут до 60 секунд
-                if resp.status_code == 200:
-                    ok_groups += 1
-                    try:
-                        data = resp.json()
-                        logger.info(
-                            f"Импорт OK: {group_payload.get('name')} "
-                            f"(создано: {data.get('lessons_created')}, обновлено: {data.get('lessons_updated')}, удалено: {data.get('lessons_removed')})"
-                        )
-                    except Exception:
-                        logger.info(f"Импорт OK: {group_payload.get('name')}")
-                elif resp.status_code == 405:
-                    logger.error(
-                        f"Импорт FAIL: {group_payload.get('name')} -> 405 (Метод POST не разрешен). "
-                        f"Возможно, на сервере старый код без эндпоинта /api/schedule/updates/import_group/. "
-                        f"Обновите сервер или проверьте URL."
-                    )
-                else:
-                    logger.error(f"Импорт FAIL: {group_payload.get('name')} -> {resp.status_code} {resp.text[:200]}")
-            except requests.exceptions.Timeout:
-                logger.error(
-                    f"Импорт FAIL: {group_payload.get('name')} -> Таймаут подключения к серверу. "
-                    f"Проверьте доступность {API_BASE_URL}"
-                )
-            except requests.exceptions.ConnectionError as e:
-                logger.error(
-                    f"Импорт FAIL: {group_payload.get('name')} -> Ошибка подключения: {e}. "
-                    f"Проверьте доступность {API_BASE_URL}"
-                )
+                lessons = parser.parse_group_schedule(group_sstu_id) or []
+                total_lessons += len(lessons)
+                
+                lessons_payload = []
+                for l in lessons:
+                    lessons_payload.append({
+                        'subject_name': l.get('subject_name'),
+                        'teacher_name': l.get('teacher_name'),
+                        'teacher_id': l.get('teacher_id'),
+                        'teacher_url': l.get('teacher_url'),
+                        'lesson_type': l.get('lesson_type'),
+                        'room': l.get('room'),
+                        'weekday': l.get('weekday'),
+                        'lesson_number': l.get('lesson_number'),
+                        'start_time': _ser_time(l.get('start_time')),
+                        'end_time': _ser_time(l.get('end_time')),
+                        'specific_date': _ser_date(l.get('specific_date')),
+                        'week_number': l.get('week_number'),
+                        'additional_info': l.get('additional_info', ''),
+                    })
+                
+                group_payload = {
+                    'institute_name': inst_payload['name'],
+                    'institute_sstu_id': inst_payload['sstu_id'],
+                    'name': group_name,
+                    'sstu_id': group_sstu_id,
+                    'education_form': grp.get('education_form'),
+                    'degree_type': grp.get('degree_type'),
+                    'course_number': grp.get('course_number'),
+                }
+                
+                payload = {
+                    'institute': inst_payload,
+                    'group': group_payload,
+                    'lessons': lessons_payload,
+                }
+                
+                parsed_groups.append((payload, group_name))
+                
             except Exception as e:
-                logger.error(f"Импорт FAIL: {group_payload.get('name')} -> Неожиданная ошибка: {e}")
+                logger.error(f"Ошибка при парсинге группы {group_name}: {e}", exc_info=True)
+                continue
+    
+    # Теперь отправляем все группы на сервер
+    logger.info(f"Этап 2: Отправка {len(parsed_groups)} групп на сервер...")
+    
+    for payload, group_name in parsed_groups:
+        if _try_send_group(payload, group_name, retries=3):
+            ok_groups += 1
+        else:
+            failed_groups.append((payload, group_name))
+        
+        # Небольшая задержка между запросами, чтобы не перегружать сервер
+        time.sleep(0.5)
+    
+    # Повторная попытка для неудачных групп
+    if failed_groups:
+        logger.warning(f"Попытка повторной отправки {len(failed_groups)} групп, которые не удалось отправить с первого раза...")
+        time.sleep(5)  # Даём серверу немного отдохнуть
+        
+        retry_failed = failed_groups.copy()
+        failed_groups.clear()
+        
+        for payload, group_name in retry_failed:
+            if _try_send_group(payload, group_name, retries=5):  # Больше попыток для повторной отправки
+                ok_groups += 1
+            else:
+                failed_groups.append((payload, group_name))
+            
+            time.sleep(1)  # Больше задержка при повторной попытке
 
+    # Финальный отчёт
     logger.info(f"Импорт завершен. Групп: {ok_groups}/{total_groups}, занятий распаршено: {total_lessons}")
-    return ok_groups == total_groups
+    
+    if failed_groups:
+        logger.warning(f"Не удалось импортировать {len(failed_groups)} групп:")
+        for _, group_name in failed_groups:
+            logger.warning(f"  - {group_name}")
+    
+    return ok_groups > 0
 
 
 def run_once():
